@@ -433,7 +433,7 @@ var CppLab = (typeof window !== 'undefined')
       s.path = to;
     });
     refresh();
-    toast(from === to ? '已记录：保持 ' + PATH_LABEL[to] : '支架已切换：' + from + ' → ' + to);
+    toast(from === to ? '已记录：保持 ' + PATH_LABEL[to] : '支架已切换：' + from + ' → ' + to + '（几秒内自动同步孩子端）');
   }
 
   /* ------------------------------------------------------------------ *
@@ -578,7 +578,7 @@ var CppLab = (typeof window !== 'undefined')
       ' title="切换到支撑更多的一档。与系统建议不一致时需要填写原因。">下调一档</button>' +
       '<button class="btn" id="sc-keep" title="明确记录一次「保持当前档」的决定（写入调档历史）。">保持当前档</button>' +
       '</div>' +
-      '<div class="ctl-tip">调档只改后续活动使用的变体，孩子已完成的记录不受影响；每次调档（含覆盖建议）都会连同原因写入历史。</div>' +
+      '<div class="ctl-tip">调档会自动同步到孩子端（几秒内）：孩子当前还没开始的活动立即换用新档变体，已经开始的活动做完后从下一个活动生效；已完成的记录不受影响。每次调档（含覆盖建议）都会连同原因写入历史。</div>' +
       '<hr class="sep">' + histHtml +
       '</div>';
 
@@ -651,9 +651,76 @@ var CppLab = (typeof window !== 'undefined')
       '<div class="ctl-tip">「记为已代读」用于你口头讲过某条提示之后补记：它会写入提示统计并抬高该活动的支持等级（S1–S4），让证据保持真实。</div>' +
       '</div>';
 
-    panel.innerHTML = card1 + card2 + '<div class="grid-2">' + card3 + card4 + '</div>';
+    /* --- 卡2.5：教师笔记（方案 §9.2 实时面板明列项；课中随手记，不依赖证据产生） --- */
+    var notes = (s.teacherNotes || []).slice().reverse().slice(0, 5);
+    var notesHtml = notes.map(function (n) {
+      return '<div class="kv" style="margin:3px 0;">' + fmtTime(n.at) + ' · ' +
+        esc(LESSON_NAMES[n.lessonId] || n.lessonId || '—') +
+        (n.activityId ? ' · ' + esc(n.activityId) : '') + '：' + esc(n.text) + '</div>';
+    }).join('') || '<div class="kv">（还没有笔记）</div>';
+    var cardNote =
+      '<div class="card">' +
+      '<h3>教师笔记（课中随手记）</h3>' +
+      '<div class="ctl-tip">活动进行中随时可写，不必等证据出现；笔记带时间与当前课程/活动一起留档，写家长报告草稿时可对照参考。逐条证据的备注请用证据流里的「编辑」。</div>' +
+      '<textarea id="tnote-input" rows="2" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-family:inherit;font-size:13px;" ' +
+      'placeholder="例：孩子主动提出想试能量 4 和 6——边界意识萌芽。">' + esc(state.noteDraft || '') + '</textarea>' +
+      '<div class="btn-row" style="margin-top:6px;"><button class="btn btn-primary btn-sm" id="tnote-save">保存笔记</button></div>' +
+      '<hr class="sep"><p class="kv" style="margin:2px 0;"><b>最近笔记（最多显示 5 条）：</b></p>' + notesHtml +
+      '</div>';
+
+    /* --- 卡2.6：真实编译通道状态（QA P2：降级不可无声，失败原因透出教师端） --- */
+    var lc = s.lastCompile || null;
+    var lcHtml;
+    if (!lc) {
+      lcHtml = '<div class="kv">（本会话还没有发起过真实 C++ 验证）</div>';
+    } else if (lc.real) {
+      lcHtml = '<div class="kv">' + fmtTime(lc.at) + ' · ' + esc(lc.activityId || '') +
+        ' · <span class="badge badge-ok">真实编译 ' + esc(lc.status) + '</span>' +
+        (lc.compilerVersion ? ' · ' + esc(lc.compilerVersion) : '') + '</div>';
+    } else {
+      lcHtml = '<div class="kv">' + fmtTime(lc.at) + ' · ' + esc(lc.activityId || '') +
+        ' · <span class="badge badge-warn">已降级为概念演示</span></div>' +
+        (lc.remoteError
+          ? '<div class="kv"><b>最近一次远程验证失败原因：</b>' + esc(lc.remoteError) + '</div>'
+          : '<div class="kv">失败原因未知（可能是断网或浏览器拦截）。</div>');
+    }
+    var cardCompile =
+      '<div class="card">' +
+      '<h3>真实编译通道</h3>' +
+      '<div class="ctl-tip">课程核心卖点「真实 C++ 验证」失败时会自动降级为概念演示（孩子端有明确标记）。这里显示最近一次验证的通道状态，持续失败请联系课程维护者。</div>' +
+      lcHtml +
+      '</div>';
+
+    panel.innerHTML = card1 + card2 + cardNote + '<div class="grid-2">' + card3 + card4 + '</div>' + cardCompile;
 
     /* 事件绑定 */
+    var tnoteTa = $('tnote-input');
+    if (tnoteTa) {
+      // 输入草稿暂存 state：孩子端写入触发的自动刷新不会吃掉正在输入的笔记
+      tnoteTa.addEventListener('input', function () { state.noteDraft = tnoteTa.value; });
+    }
+    var tnoteSave = $('tnote-save');
+    if (tnoteSave) {
+      tnoteSave.addEventListener('click', function () {
+        var text = (tnoteTa && tnoteTa.value || '').trim();
+        if (!text) { toast('先写点内容再保存'); return; }
+        var noteLesson = state.lessonId;
+        var noteAct = act ? act.id : null;
+        CppLab.Storage.update(function (ss) {
+          ss.teacherNotes = ss.teacherNotes || [];
+          ss.teacherNotes.push({
+            id: 'tn-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+            at: new Date().toISOString(),
+            lessonId: noteLesson,
+            activityId: noteAct,
+            text: text
+          });
+        });
+        state.noteDraft = '';
+        refresh();
+        toast('教师笔记已保存');
+      });
+    }
     var scUp = $('sc-up'), scDown = $('sc-down'), scKeep = $('sc-keep');
     if (scUp) scUp.addEventListener('click', function () { scaffoldClick('up', sugg, path); });
     if (scDown) scDown.addEventListener('click', function () { scaffoldClick('down', sugg, path); });
@@ -1001,11 +1068,22 @@ var CppLab = (typeof window !== 'undefined')
     }).join('，') || '（无变量）';
     var expected = (act.compilerCheck && act.compilerCheck.enabled) ? act.compilerCheck.expectedStdout : null;
     var expectedLine = '';
-    if (expected != null && expected !== '') {
+    if (act.activityType === 'bughunt') {
+      // bughunt 的 program 是带 bug 版（教学设计）：直接运行的输出是修复前的表现；
+      // expectedStdout 是孩子修好 bug、真实编译后的预期输出，两者不同是设计使然。
+      expectedLine = (expected != null && expected !== '')
+        ? '<p class="kv" style="margin:4px 0;">本活动程序为<b>带 bug 版</b>（教学设计）：上面是修复前的表现；孩子修好 bug 并真实编译后，预期输出为 <code>' + esc(expected) + '</code>。</p>'
+        : '';
+    } else if (expected != null && expected !== '') {
       var same = String(expected) === String(result.stdout || '');
-      expectedLine = '<p class="kv" style="margin:4px 0;">与真实编译预期输出' +
-        (same ? '一致 <span class="badge badge-ok">✓ 一致</span>'
-              : '不一致 <span class="badge badge-err">✗ 请报告给课程维护者</span>') + '</p>';
+      if (!same && act.activityType === 'slots') {
+        // slots 的存档 program 可以是未解版：解出目标后才等于 expectedStdout（产品验证时机）
+        expectedLine = '<p class="kv" style="margin:4px 0;">本活动为槽位调整任务：上面是初始（未解）程序的输出；孩子调对槽位达成目标后，预期输出为 <code>' + esc(expected) + '</code>。</p>';
+      } else {
+        expectedLine = '<p class="kv" style="margin:4px 0;">与真实编译预期输出' +
+          (same ? '一致 <span class="badge badge-ok">✓ 一致</span>'
+                : '不一致 <span class="badge badge-err">✗ 请报告给课程维护者</span>') + '</p>';
+      }
     }
     openModal('正确轨迹 · ' + act.title + '（' + (state.session.path || 'S') + ' 档）',
       '<p class="kv" style="margin:0 0 4px;">聚焦代码（孩子端看到的同一份）：</p>' +
@@ -1046,13 +1124,13 @@ var CppLab = (typeof window !== 'undefined')
     var reviewBanner = '';
     if (lesson2Done) {
       reviewBanner = pathConfirmed
-        ? '<div class="hi-banner">✅ 第 2 次路径复核已完成：当前路径 ' + esc(PATH_LABEL[s.path] || s.path) + ' 已由教师确认。</div>'
-        : '<div class="hi-banner">📌 第 2 课已完成——请做「第 2 次路径复核」：对照下方建议与两课证据，点击按钮确认或调整正式路径。</div>';
+        ? '<div class="hi-banner">✅ 路径确认（第 2 课后确认点）已完成：当前路径 ' + esc(PATH_LABEL[s.path] || s.path) + ' 已由教师确认。</div>'
+        : '<div class="hi-banner">📌 第 2 课已完成——请做「路径确认（第 2 课后确认点）」：对照下方建议与两课证据，点击按钮确认或调整正式路径。（「第 2 次路径复核」在第 6 课，见课程地图。）</div>';
     }
     parts.push(
       '<div class="card">' +
-      '<h3>路径建议与复核</h3>' +
-      '<div class="ctl-tip">试听给出的是临时路径；第 2 课结束后需要第二次确认。建议只是参考，最终由你拍板，调整会连同原因留档。</div>' +
+      '<h3>路径建议与确认</h3>' +
+      '<div class="ctl-tip">试听给出的是临时路径；第 2 课结束后做「路径确认」，第 6 课才是「第 2 次路径复核」（课程地图术语）。建议只是参考，最终由你拍板，调整会连同原因留档。</div>' +
       reviewBanner + suggHtml +
       '<p style="margin:8px 0 4px;">当前正式路径：<span class="badge badge-path">' + esc(PATH_LABEL[s.path] || s.path) + '</span></p>' +
       '<div class="btn-row">' +
@@ -1151,9 +1229,9 @@ var CppLab = (typeof window !== 'undefined')
     var confirmBtn = panel.querySelector('[data-path-confirm]');
     if (confirmBtn) {
       confirmBtn.addEventListener('click', function () {
-        askConfirm('确认第 2 次路径复核',
+        askConfirm('路径确认（第 2 课后确认点）',
           '<p style="font-size:13px;">将把当前路径 <b>' + esc(PATH_LABEL[s.path] || s.path) +
-          '</b> 记录为第 2 次复核的确认结果。之后仍可调整，但建议同步告知家长。</p>',
+          '</b> 记录为第 2 课后确认点的确认结果。之后仍可调整（第 6 课还有「第 2 次路径复核」），但建议同步告知家长。</p>',
           '确认路径', false,
           function () {
             CppLab.Storage.update(function (ss) {
@@ -1162,7 +1240,7 @@ var CppLab = (typeof window !== 'undefined')
               ss.lessons.lesson2.pathConfirmed = true;
             });
             refresh();
-            toast('第 2 次路径复核已记录');
+            toast('路径确认（第 2 课后）已记录');
           });
       });
     }

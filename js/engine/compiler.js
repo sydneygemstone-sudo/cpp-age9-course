@@ -57,6 +57,7 @@ var CppLab = (typeof window !== 'undefined')
   var injectedFetch;
 
   var lastRemoteAt = 0;      // 节流：上一次远程调用的"占位时间"
+  var lastRemoteError = null; // {at, message}：最近一次远程验证降级的原因（教师端可观测性）
   var currentAdapter = 'remote';
 
   /* ------------------------------------------------------------------ *
@@ -438,6 +439,15 @@ var CppLab = (typeof window !== 'undefined')
       var stdout = String(d.program_output || '');
       var runStderr = stripAnsi(d.program_error || '');
 
+      // 保守闸门（QA P2）：故障文案会变，不能只认 OCI/crun 一种形态。
+      // 非 0 退出、没有任何编译报错（error:）、也没有任何程序输出/程序报错，
+      // 或 shell 级故障码 126/127——这些呈现的是基础设施失败特征而非学生程序行为，
+      // 一律抛出走降级（offline），绝不冒充 real:true 的 runtime_error 记在学生头上。
+      if (!d.signal && exit !== '0' && !/error:/.test(compilerErr) &&
+          (exit === '126' || exit === '127' || (stdout === '' && runStderr === ''))) {
+        throw new Error('cpplab-wandbox-sandbox-down');
+      }
+
       var status;
       if (/error:/.test(compilerErr)) status = 'compile_error';
       else if (d.signal && /XCPU|KILL|ALRM/i.test(String(d.signal))) status = 'timeout';
@@ -469,6 +479,7 @@ var CppLab = (typeof window !== 'undefined')
       return Promise.resolve(makeResult({ status: 'offline', elapsedMs: nowMs() - started }));
     }
 
+    var ceFailNote = null;
     return throttleSlot()
       .then(function () { return compileViaCE(fetchFn, source, stdin); })
       .catch(function (ceErr) {
@@ -476,6 +487,7 @@ var CppLab = (typeof window !== 'undefined')
         if (ceErr && ceErr.message === 'cpplab-timeout') {
           // 网络层 15s 超时：按契约仍尝试备选一次
         }
+        ceFailNote = 'CE(godbolt) 失败：' + describeRemoteError(ceErr);
         return throttleSlot().then(function () {
           return compileViaWandbox(fetchFn, source, stdin);
         });
@@ -502,10 +514,25 @@ var CppLab = (typeof window !== 'undefined')
           elapsedMs: nowMs() - started
         });
       })
-      .catch(function () {
-        // 两个远程端点都失败 → 离线降级（UI 必须显示"概念演示"标记）
-        return makeResult({ status: 'offline', elapsedMs: nowMs() - started });
+      .catch(function (wbErr) {
+        // 两个远程端点都失败 → 离线降级（UI 必须显示"概念演示"标记）。
+        // 失败原因留档并随结果透出，教师端可看到「真实验证为何不可用」而非无声消失。
+        var note = (ceFailNote ? ceFailNote + '；' : '') +
+          'Wandbox 失败：' + describeRemoteError(wbErr);
+        lastRemoteError = { at: new Date().toISOString(), message: note };
+        return makeResult({ status: 'offline', elapsedMs: nowMs() - started, remoteError: note });
       });
+  }
+
+  /** 远程错误的教师可读描述（内部错误码 → 中文短语） */
+  function describeRemoteError(err) {
+    var m = (err && err.message) ? String(err.message) : '未知错误';
+    if (m === 'cpplab-timeout') return '15 秒内没有响应（网络超时）';
+    if (m === 'cpplab-bad-shape') return '返回数据格式异常（接口可能已变更）';
+    if (m === 'cpplab-wandbox-sandbox-down') return '沙箱基础设施故障（非学生程序问题）';
+    if (/^cpplab-http-404$/.test(m)) return 'HTTP 404（编译器 id 可能已下线，需要维护者更新端点）';
+    if (/^cpplab-http-/.test(m)) return 'HTTP ' + m.replace('cpplab-http-', '') + ' 错误';
+    return m;
   }
 
   /* ------------------------------------------------------------------ *
@@ -576,6 +603,9 @@ var CppLab = (typeof window !== 'undefined')
 
     getAdapterName: function () { return currentAdapter; },
 
+    /** 最近一次远程验证降级的原因（{at, message} 或 null）——教师端展示用 */
+    getLastRemoteError: function () { return lastRemoteError; },
+
     /**
      * 友好错误映射（纯函数，教师端/测试可直接调用）。
      * stderrText: 原始 g++ stderr；source: 学生源码（用于 =/== 规则补充检测）。
@@ -593,6 +623,7 @@ var CppLab = (typeof window !== 'undefined')
       cfg.throttleMs = 1000;
       cfg.stdoutLimit = 10240;
       lastRemoteAt = 0;
+      lastRemoteError = null;
       currentAdapter = 'remote';
     }
   };

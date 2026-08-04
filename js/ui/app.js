@@ -99,9 +99,12 @@ var CppLab = (typeof window !== 'undefined')
     return String(a).trim() === String(b).trim();
   }
 
+  /**
+   * 自动评分封顶 outcome=2（方案 5.1：3 级要求「能解释、迁移、自我检查或提出更优方法」，
+   * 一次点对选择题不构成 3 级证据；3 级仅由教师在证据修订里基于解释/迁移表现手动升级）。
+   */
   function outcomeFromAttempts(n) {
-    if (n <= 1) return 3;
-    if (n === 2) return 2;
+    if (n <= 1) return 2;
     return 1;
   }
 
@@ -196,15 +199,32 @@ var CppLab = (typeof window !== 'undefined')
   }
 
   /**
-   * 教师端控制同步：hints.js 的 H5 解锁是每页内存态，教师 tab 通过
-   * session.teacherControls.h5Unlocked 双写传递——孩子端监听 storage 事件 + 轮询兜底，
-   * 同步调用 Hints.unlockH5/relockH5，教师解锁才能到达孩子 tab。
+   * 教师端控制同步：
+   * 1. hints.js 的 H5 解锁是每页内存态，教师 tab 通过 session.teacherControls.h5Unlocked
+   *    双写传递——孩子端监听 storage 事件 + 轮询兜底，同步调用 Hints.unlockH5/relockH5。
+   * 2. 教师中途调档（方案 §4.2 / §12.2 F4-F6）：教师端写 session.path 后，孩子端引擎
+   *    支架必须跟随——当前活动尚未开始时立即换变体，已开始则从下一个活动生效。
    */
+  function syncScaffoldFromTeacher(s) {
+    if (!S.engine || !s || ['E', 'S', 'A'].indexOf(s.path) < 0) return;
+    if (S.engine.scaffold === s.path) return;
+    // 教师端 applyScaffold 已写入 scaffoldHistory，这里只同步引擎内存档位，不重复留痕
+    S.engine.scaffold = s.path;
+    S.engine._streak = [];
+    var ui = S.ui;
+    var untouched = S.view === 'lesson' && ui && !ui.completed && !ui.predicted &&
+      ui.emitted === 0 && ui.localCursor === 0 && ui.interactionAttempts === 0 &&
+      !ui.runFinished && !ui.pendingCp && !ui.bugFoundLine &&
+      S.engine.getActivityState().status === 'idle';
+    if (untouched) renderActivity(); // 未开始的活动立即用新档变体重渲染
+  }
+
   function startTeacherControlSync() {
-    if (!CppLab.Hints || typeof CppLab.Hints.unlockH5 !== 'function') return;
     function syncOnce() {
       var s;
       try { s = session(); } catch (e) { return; }
+      syncScaffoldFromTeacher(s);
+      if (!CppLab.Hints || typeof CppLab.Hints.unlockH5 !== 'function') return;
       var map = (s && s.teacherControls && s.teacherControls.h5Unlocked) || {};
       var id;
       for (id in map) {
@@ -528,6 +548,12 @@ var CppLab = (typeof window !== 'undefined')
     if (Array.isArray(cardData.events) && cardData.events.length) {
       c.appendChild(el('div', 'ac-line', '故事事件：' + cardData.events.join('、')));
     }
+    if (typeof cardData.finalEnergy === 'number') {
+      c.appendChild(el('div', 'ac-line', '最终能量：' + cardData.finalEnergy + ' 格'));
+    }
+    if (cardData.explanation) {
+      c.appendChild(el('div', 'ac-line', '我的解释：「' + cardData.explanation + '」'));
+    }
     if (cardData.verified === true) {
       c.appendChild(el('div', 'ac-line', '✅ 已通过真实 C++ 验证'));
     }
@@ -752,6 +778,12 @@ var CppLab = (typeof window !== 'undefined')
 
     var program = variant && Array.isArray(variant.program) ? variant.program : null;
     if (S.ui.type === 'slots' && program) {
+      S.ui.workProgram = deepClone(program);
+      S.ui.useLocal = true;
+    }
+    // ordering+program（如 lesson1-02）：卡片顺序驱动程序执行，
+    // 交换顺序后能重跑、看中间状态（方案 7.4 观察点「交换顺序后看结果」）
+    if (S.ui.type === 'ordering' && program && orderingProgramMappable(variant)) {
       S.ui.workProgram = deepClone(program);
       S.ui.useLocal = true;
     }
@@ -1084,7 +1116,9 @@ var CppLab = (typeof window !== 'undefined')
     }
 
     var type = ui.type;
-    if (type === 'predict' || (effPrediction() && (type === 'trace' || ui.variant.prediction))) {
+    // ordering 例外：预测只是热身，完成判定始终走「检查顺序」，运行是可反复的探索
+    if (type === 'predict' ||
+        (effPrediction() && (type === 'trace' || (ui.variant.prediction && type !== 'ordering')))) {
       // 有预测：运行完先对答案
       if (type === 'trace') {
         maybeFinishTrace();
@@ -1150,7 +1184,10 @@ var CppLab = (typeof window !== 'undefined')
     ui.predictedValue = value;
     renderCenter();
     refreshButtons();
-    toast('预测已经收好！跑一跑看看你猜得对不对～');
+    // 没有可运行程序的活动（如 trial-02）不能说「跑一跑」——那是死指引
+    toast(activeProgram()
+      ? '预测已经收好！跑一跑看看你猜得对不对～'
+      : '预测已经收好！接着完成上面的任务，看看你猜得对不对～');
   }
 
   function buildPredictPanel() {
@@ -1421,6 +1458,62 @@ var CppLab = (typeof window !== 'undefined')
 
   /* ---------------------------- ordering ---------------------------- */
 
+  /** ordering+program：卡片与程序步一一对应（correctOrder[i] ↔ program[i]）才能按卡序重排执行。 */
+  function orderingProgramMappable(variant) {
+    var inter = variant && variant.interaction;
+    var program = variant && variant.program;
+    if (!inter || !Array.isArray(inter.items) || !Array.isArray(inter.correctOrder) || !Array.isArray(program)) return false;
+    if (inter.items.length !== program.length || inter.correctOrder.length !== program.length) return false;
+    var ids = inter.items.map(function (it) { return it && it.id; });
+    return inter.correctOrder.every(function (id) { return ids.indexOf(id) >= 0; });
+  }
+
+  /** ordering+program：按当前卡片顺序重排程序副本，并作废旧运行态（可反复交换重跑）。 */
+  function syncOrderedProgram() {
+    var ui = S.ui;
+    if (!ui || ui.type !== 'ordering' || !ui.useLocal || !ui.orderIds) return;
+    var inter = (ui.variant && ui.variant.interaction) || {};
+    var base = (ui.variant && ui.variant.program) || null;
+    if (!base || !Array.isArray(inter.correctOrder)) return;
+    ui.workProgram = ui.orderIds.map(function (id) {
+      return deepClone(base[inter.correctOrder.indexOf(id)]);
+    });
+    ui.localExec = null;
+    ui.localCursor = 0;
+    ui.runFinished = false;
+    ui.lastRunError = null;
+    if (S.dom && S.dom.varsGrid) clearRunPanels();
+    var codeHost = document.getElementById('code-host');
+    if (codeHost) renderCodePanel(codeHost);   // 代码台跟着卡片顺序变
+    refreshButtons();
+  }
+
+  /** 无程序的排序活动（如 trial-02 首胜、trial-08-E）：排对后按正确顺序上演命令动画（方案 §4.3）。 */
+  function playSequenceDemo(inter) {
+    var ui = S.ui;
+    if (!S.viz || !ui) return;
+    if (ui.variant && Array.isArray(ui.variant.program) && ui.variant.program.length) return;
+    if (!ui.activity) return;
+    var byId = {};
+    (inter.items || []).forEach(function (it) { if (it) byId[it.id] = it; });
+    var ids = (inter.correctOrder || []).slice();
+    var gap = animDelay();
+    ids.forEach(function (id, i) {
+      var it = byId[id] || { label: String(id) };
+      var text = '第 ' + (i + 1) + ' 步：' + (it.icon ? it.icon + ' ' : '') + it.label + '！' +
+        (i === ids.length - 1 ? ' 任务完成！' : '');
+      var show = function () {
+        if (!S.viz) return;
+        try { S.viz.applyTraceEntry({ kind: 'seq-demo', index: i, description: text }); } catch (e) { /* 忽略 */ }
+      };
+      if (gap === 0) {
+        if (i === ids.length - 1) show(); // 动画关闭：只展示完成旁白
+      } else {
+        setTimeout(show, 350 + i * Math.max(gap, 700));
+      }
+    });
+  }
+
   function renderOrdering(host, inter) {
     var ui = S.ui;
     var items = (inter.items || []).slice();
@@ -1438,10 +1531,12 @@ var CppLab = (typeof window !== 'undefined')
       } while (ids.join('|') === correct && guard < 10 && ids.length > 1);
       ui.orderIds = ids;
     }
+    syncOrderedProgram(); // ordering+program：代码台/运行按当前卡序执行
 
     var card = el('div', 'panel');
     card.appendChild(el('div', 'panel-title', '🧩 排一排'));
-    card.appendChild(el('p', 'activity-prompt', '点「上移」「下移」，把步骤排成正确的顺序。'));
+    card.appendChild(el('p', 'activity-prompt', '点「上移」「下移」，把步骤排成正确的顺序。' +
+      (ui.useLocal ? '每换一次顺序，都可以按「运行」看看能量会走哪条路！' : '')));
     var list = el('ol', 'order-list');
 
     function itemById(id) {
@@ -1470,12 +1565,13 @@ var CppLab = (typeof window !== 'undefined')
     }
 
     function move(idx, delta) {
-      if (ui.completed) return;
+      // 注意：完成后不再禁止交换——「交换顺序再跑一次」正是本类活动的教学动作
       var j = idx + delta;
       if (j < 0 || j >= ui.orderIds.length) return;
       var t = ui.orderIds[idx];
       ui.orderIds[idx] = ui.orderIds[j];
       ui.orderIds[j] = t;
+      syncOrderedProgram();
       draw();
     }
 
@@ -1483,10 +1579,20 @@ var CppLab = (typeof window !== 'undefined')
     card.appendChild(list);
 
     var check = btn('✅ 检查顺序', 'btn btn-accent', function () {
-      if (ui.completed) return;
-      ui.interactionAttempts += 1;
       var ok = ui.orderIds.join('|') === (inter.correctOrder || []).join('|');
+      if (ui.completed) {
+        // 完成后的重玩/交换实验：只反馈，不再计证据
+        showFeedback(ok ? 'ok' : 'warn',
+          ok ? '顺序又排对啦！' : '这个顺序和标准队伍不一样',
+          ui.useLocal
+            ? '按「运行」看看这套顺序下能量怎么走——中间的数字和刚才一样吗？'
+            : (ok ? '记得越来越牢了！' : '想一想哪一步应该先发生？'),
+          []);
+        return;
+      }
+      ui.interactionAttempts += 1;
       if (ok) {
+        playSequenceDemo(inter); // 无程序的排序（如 trial-02）：排对后立即上演动作序列
         completeCurrent({
           outcome: outcomeFromAttempts(ui.interactionAttempts),
           selfCorrection: ui.interactionAttempts > 1,
@@ -1636,6 +1742,18 @@ var CppLab = (typeof window !== 'undefined')
     ui.interactionAttempts += 1;
 
     if (ok && !ui.completed) {
+      // 承接次优来源（方案 §8.2）：lesson1 达标活动（如 act5「正好到达 10」）的最终能量。
+      // 作品卡（第一优先来源）已写过最终能量时不覆盖；演示程序重跑不再写 finalEnergy（见 lessonEngine）。
+      if (S.lessonId === 'lesson1' && goal.type === 'finalVar' &&
+          exec.finalVars && typeof exec.finalVars.energy === 'number') {
+        var fe = exec.finalVars.energy;
+        Sto().update(function (ss) {
+          ss.lessons = ss.lessons || {};
+          ss.lessons.lesson1 = ss.lessons.lesson1 || { completed: false, finalEnergy: null, artifactCard: null, activityStates: {} };
+          var ac = ss.lessons.lesson1.artifactCard;
+          if (!(ac && typeof ac.finalEnergy === 'number')) ss.lessons.lesson1.finalEnergy = fe;
+        });
+      }
       // 第 2 课：孩子的最终规则（所选门+符号+门槛）存入 session.lessons.lesson2.customRule
       if (S.lessonId === 'lesson2' && CppLab.IR && ui.workProgram) {
         var ruleText = '';
@@ -1761,6 +1879,58 @@ var CppLab = (typeof window !== 'undefined')
     return full.replace(bug.wrongPiece, bug.rightPiece);
   }
 
+  /* ---- bughunt 的 IR 级修复：用于本地重算「修好版」的预期输出 ---- */
+
+  var BUG_FIX_OPS = ['+', '-', '*', '/', '>', '>=', '<', '<=', '==', '!=', '&&', '||'];
+
+  /** 在表达式树里找到 exprToCpp === wrongPiece 的 bin 节点，换运算符使其变成 rightPiece。 */
+  function tryFixExprNode(node, wrong, right) {
+    if (!node || typeof node !== 'object') return false;
+    if (node.kind !== 'bin') return false;
+    var cur = null;
+    try { cur = CppLab.IR.exprToCpp(node); } catch (e) { cur = null; }
+    if (cur === wrong) {
+      var orig = node.op;
+      for (var i = 0; i < BUG_FIX_OPS.length; i++) {
+        node.op = BUG_FIX_OPS[i];
+        try {
+          if (CppLab.IR.exprToCpp(node) === right) return true;
+        } catch (e2) { /* 忽略 */ }
+      }
+      node.op = orig;
+    }
+    return tryFixExprNode(node.left, wrong, right) || tryFixExprNode(node.right, wrong, right);
+  }
+
+  function fixStepInPlace(step, wrong, right) {
+    if (!step || typeof step !== 'object') return false;
+    if (step.expr && tryFixExprNode(step.expr, wrong, right)) return true;
+    if (step.cond && tryFixExprNode(step.cond, wrong, right)) return true;
+    var branches = ['then', 'else'];
+    for (var b = 0; b < branches.length; b++) {
+      var arr = step[branches[b]];
+      if (Array.isArray(arr)) {
+        for (var i = 0; i < arr.length; i++) {
+          if (fixStepInPlace(arr[i], wrong, right)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /** bughunt：返回修好 bug 后的程序副本（IR 级 wrongPiece→rightPiece），修不了返回 null。 */
+  function bugFixedProgram() {
+    var ui = S.ui;
+    var inter = (ui && ui.variant && ui.variant.interaction) || {};
+    var bug = inter.bug;
+    var program = activeProgram();
+    if (!bug || !program || !CppLab.IR) return null;
+    var clone = deepClone(program);
+    var step = clone[bug.stepIndex];
+    if (!step || !fixStepInPlace(step, bug.wrongPiece, bug.rightPiece)) return null;
+    return clone;
+  }
+
   /* ---------------------------- teach-transfer ---------------------------- */
 
   function renderTeachTransfer(host, inter) {
@@ -1852,13 +2022,16 @@ var CppLab = (typeof window !== 'undefined')
           childAction: '教学后迁移题，第 ' + ui.interactionAttempts + ' 次答对'
         });
       } else if (ui.interactionAttempts >= 2) {
-        showFeedback('warn', '这道题真不简单！', '没关系，答案是 ' + String(transfer.correct) + '。想一想它为什么是这个？下次一定行！', [
-          { label: '知道了，继续', primary: true, onClick: function () {
+        // 方案 11.3：默认不直接给答案。D9 是关键诊断位——答案一旦泄露，教师无法用同题复测；
+        // 这里给近似例子式的提示，把揭示答案的时机交还给老师。
+        showFeedback('warn', '这道题真不简单！', '换个想法试试：先把刚才教搭档的口诀在心里再走一遍，' +
+          '用手指头指着数一步一步变。还是拿不准的话，和老师一起看看——老师会用一道很像的小题目带你走通它！', [
+          { label: '和老师一起看看', primary: true, onClick: function () {
               completeCurrent({
                 outcome: 1,
                 transferResult: false,
                 answerOrCode: String(value),
-                childAction: '迁移题两次未答对，看解释后继续'
+                childAction: '迁移题两次未答对，转交老师复盘（答案未向孩子展示，可同题复测）'
               });
             } }
         ]);
@@ -2020,6 +2193,18 @@ var CppLab = (typeof window !== 'undefined')
     group('选择出发能量', choices.initialEnergy, 'initialEnergy');
     group('挑选故事事件（可以多选）', choices.events, 'events');
 
+    // 方案 7.7：作品卡要有「一句自己的解释」——可打字，也可口头说、请老师代填
+    var expGroup = el('div', 'build-group');
+    expGroup.appendChild(el('div', 'bg-title', '我的一句话解释（会印在作品卡上）'));
+    var expInput = el('input', 'text-input');
+    expInput.type = 'text';
+    expInput.maxLength = 60;
+    expInput.placeholder = '比如：能量先加 4 再减 1，最后是 6。也可以说给老师听，请老师帮你打字～';
+    if (ui.buildExplain) expInput.value = ui.buildExplain;
+    expInput.addEventListener('input', function () { ui.buildExplain = expInput.value; });
+    expGroup.appendChild(expInput);
+    card.appendChild(expGroup);
+
     // 故事预览：选择合成 IR 程序，本地跑一遍给孩子看结局能量
     var preview = el('div', 'build-preview form-hint');
     preview.style.marginTop = '10px';
@@ -2042,11 +2227,19 @@ var CppLab = (typeof window !== 'undefined')
     function currentCardData(verified) {
       var s = session();
       var prog = buildComposeProgram(ui.buildPick);
+      var exec = null;
+      if (prog && CppLab.IR) {
+        try { exec = CppLab.IR.execute(prog); } catch (e) { exec = null; }
+      }
+      var finalEnergy = (exec && !exec.error && exec.finalVars &&
+        typeof exec.finalVars.energy === 'number') ? exec.finalVars.energy : null;
       return {
         title: (s.nickname || '我') + ' 的作品',
         skin: ui.buildPick.skin || s.robotSkin,
         initialEnergy: ui.buildPick.initialEnergy,
         events: ui.buildPick.events.map(function (ev) { return buildOptLabel(ev, 'events'); }),
+        finalEnergy: finalEnergy,                        // 方案 7.7：最终结果
+        explanation: (ui.buildExplain || '').trim(),     // 方案 7.7：一句自己的解释
         focusCode: (prog && CppLab.IR) ? CppLab.IR.toFocusCpp(prog) : '',
         verified: !!verified,
         savedAt: new Date().toISOString()
@@ -2060,6 +2253,10 @@ var CppLab = (typeof window !== 'undefined')
         ss.lessons = ss.lessons || {};
         ss.lessons[lessonId] = ss.lessons[lessonId] || { completed: false, activityStates: {} };
         ss.lessons[lessonId].artifactCard = cardData;
+        // 承接权威第一优先（方案 §8.2）：作品卡的最终能量写入 lesson1.finalEnergy
+        if (lessonId === 'lesson1' && typeof cardData.finalEnergy === 'number') {
+          ss.lessons[lessonId].finalEnergy = cardData.finalEnergy;
+        }
       });
       return cardData;
     }
@@ -2202,7 +2399,8 @@ var CppLab = (typeof window !== 'undefined')
       answered = cps.length;
     }
     var ratio = cps.length ? (correct / cps.length) : 1;
-    var outcome = ratio >= 0.999 ? 3 : (ratio >= 0.5 ? 2 : 1);
+    // 自动评分封顶 2：检查点全对=新题独立完成(2)；3 级只能由教师基于解释/迁移升级
+    var outcome = ratio >= 0.999 ? 2 : 1;
     completeCurrent({
       outcome: outcome,
       answerOrCode: '检查点答对 ' + correct + '/' + cps.length,
@@ -2244,7 +2442,8 @@ var CppLab = (typeof window !== 'undefined')
         openModal('完整的 C++ 程序', function (body) {
           body.appendChild(el('p', 'form-hint', '这就是机器人真正读的完整程序。现在看不懂也没关系，我们在一格一格点亮它！'));
           var full = CppLab.IR.toFullCpp(program);
-          if (ui.type === 'bughunt') full = bugFixedSource(full);
+          // bughunt：修好之前透视的也是带 bug 版——提前展示修好行会泄露答案
+          if (ui.type === 'bughunt' && ui.bugFixed) full = bugFixedSource(full);
           body.appendChild(buildCodeView(full.split('\n'), null, {}));
         });
       });
@@ -2478,7 +2677,8 @@ var CppLab = (typeof window !== 'undefined')
     var program = activeProgram();
     if (!program || !CppLab.IR) return null;
     var full = CppLab.IR.toFullCpp(program);
-    if (ui.type === 'bughunt') full = bugFixedSource(full);
+    // 修好之后才编译修好版；修好之前验证的就是带 bug 版（与屏幕模拟一致，不提前泄露答案）
+    if (ui.type === 'bughunt' && ui.bugFixed) full = bugFixedSource(full);
     return full;
   }
 
@@ -2519,6 +2719,19 @@ var CppLab = (typeof window !== 'undefined')
     CppLab.Compiler.compile(req).then(function (res) {
       ui.verifyBusy = false;
       S.dom.bVerify.textContent = '🧪 真实C++验证';
+      // 教师端可观测性：最近一次真实验证的状态与降级原因写入 session（教师端展示）
+      try {
+        Sto().update(function (ss) {
+          ss.lastCompile = {
+            at: new Date().toISOString(),
+            activityId: ui.activity.id,
+            status: res.status,
+            real: !!res.real,
+            compilerVersion: res.compilerVersion || '',
+            remoteError: res.remoteError || null
+          };
+        });
+      } catch (e) { /* 记录失败不影响孩子端流程 */ }
       renderCompileResult(res, isFree);
       refreshButtons();
     }, function () {
@@ -2544,16 +2757,49 @@ var CppLab = (typeof window !== 'undefined')
       card.appendChild(el('div', 'fb-title', '✅ 真实C++编译通过！'));
       card.appendChild(el('p', null, '真正的 C++ 编译器读懂了这段代码，还运行了它。电脑的回答是：'));
       card.appendChild(el('div', 'cr-stdout', (res.stdout === '' || res.stdout == null) ? '（这次没有输出）' : res.stdout));
-      var expected = ui.activity.compilerCheck && ui.activity.compilerCheck.expectedStdout;
+      // 比对基准 = 「这次真正送去编译的程序」的本地模拟输出（§12.2 概念模拟与真实编译一致）。
+      // bughunt 修好后比对修好版（内容里的 expectedStdout 也是修好版输出）；slots 比对孩子
+      // 当前 workProgram；本地重算不了才退回内容配置的 expectedStdout。
+      var expected = null;
+      if (!isFree) {
+        var simProg = (ui.type === 'bughunt' && ui.bugFixed) ? bugFixedProgram() : activeProgram();
+        if (simProg && CppLab.IR) {
+          try {
+            var sim = CppLab.IR.execute(simProg);
+            if (!sim.error) expected = sim.stdout;
+          } catch (e) { /* 忽略，走兜底 */ }
+        }
+        if (expected == null && !(ui.type === 'bughunt' && ui.bugFixed)) {
+          var cc = ui.activity.compilerCheck;
+          if (cc && cc.expectedStdout) expected = cc.expectedStdout;
+        }
+      }
       if (!isFree && expected !== undefined && expected !== null && expected !== '') {
         if (res.stdout === expected) {
-          card.appendChild(el('p', null, '🎯 和我们在屏幕上演的一模一样！模拟和真实世界对上了。'));
+          card.appendChild(el('p', null, (ui.type === 'bughunt' && ui.bugFixed)
+            ? '🎯 和修好之后我们预想的结果一模一样！这只 bug 真的被你修好了。'
+            : '🎯 和我们在屏幕上演的一模一样！模拟和真实世界对上了。'));
         } else {
           card.appendChild(el('p', null, '🤨 咦，和我们预想的结果有点不一样，叫老师一起来看看吧。'));
         }
       }
       if (res.compilerVersion) {
         card.appendChild(el('div', 'cr-meta', '编译器：' + res.compilerVersion + (res.elapsedMs ? ' · 用时 ' + Math.round(res.elapsedMs) + ' 毫秒' : '')));
+      }
+      // 方案 8.4：door 模型活动的舱门动画由真实输出驱动一次（真实编译成功时）。
+      // OPEN/门开 → 开门；CHARGE/还是关 → 保持关门充电。旁白点明这是真实编译结果。
+      if (!isFree && S.viz && ui.activity.visualModel === 'door' && typeof res.stdout === 'string') {
+        var realOut = res.stdout.trim();
+        var doorOpen = /OPEN|门开/.test(realOut) ? true : (/CHARGE|还是关|门没开/.test(realOut) ? false : null);
+        if (doorOpen !== null) {
+          try {
+            S.viz.setDoor(doorOpen);
+            if (typeof S.viz.setCaption === 'function') {
+              S.viz.setCaption('这一下是真实编译结果驱动的：真正的 C++ 说「' + realOut + '」，所以舱门' +
+                (doorOpen ? '打开了！' : '保持关闭，继续充电。'));
+            }
+          } catch (e) { /* 可视化驱动失败不阻断结果展示 */ }
+        }
       }
       if (ui.type === 'freeEdit' && !ui.completed) {
         completeCurrent({
@@ -2632,6 +2878,17 @@ var CppLab = (typeof window !== 'undefined')
     });
   }
 
+  /** 状态提示条（锁定/用完等）只保留一条：追加前先清掉旧的同类 .hint-note，防止反复点出重复条。 */
+  function replaceHintNote(text) {
+    var d = S.dom;
+    if (!d.hintList) return;
+    var olds = d.hintList.querySelectorAll('.hint-note');
+    for (var i = 0; i < olds.length; i++) {
+      if (olds[i].parentNode) olds[i].parentNode.removeChild(olds[i]);
+    }
+    d.hintList.appendChild(el('div', 'hint-note', text));
+  }
+
   function doHint() {
     var ui = S.ui;
     if (!ui) return;
@@ -2652,12 +2909,11 @@ var CppLab = (typeof window !== 'undefined')
       return;
     }
     if (res && res.locked) {
-      var lockNote = el('div', 'hint-note', '更大的提示需要老师帮忙解锁，举手叫老师来吧！');
-      d.hintList.appendChild(lockNote);
+      replaceHintNote('更大的提示需要老师帮忙解锁，举手叫老师来吧！');
       return;
     }
     if (res && res.exhausted) {
-      d.hintList.appendChild(el('div', 'hint-note', '提示都用完啦。和老师一起看看这道题？'));
+      replaceHintNote('提示都用完啦。和老师一起看看这道题？');
       return;
     }
     toast('暂时拿不到提示，问问老师吧');

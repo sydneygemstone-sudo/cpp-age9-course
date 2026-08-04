@@ -219,8 +219,9 @@ assert(eng.getActivityState().status === 'done', '跑完后状态应为 done');
 assert(traceEvents.length === 2, '应逐条发出 2 个 trace-step 事件');
 assert(traceEvents[1].varsAfter.energy === 7, 'trace 应算出 energy=7');
 
-// lesson1 执行完毕应自动保存 finalEnergy（承接源头）
-assert(Storage.load().lessons.lesson1.finalEnergy === 7, 'lesson1 运行完应保存 finalEnergy=7');
+// finalEnergy 承接权威在作品卡/达标活动（app.js 单点写入，方案 §8.2）；
+// 演示程序经引擎重跑不得覆写承接值（QA 修复：act6/act8 重跑曾把 finalEnergy 打回 6/5）
+assert(Storage.load().lessons.lesson1.finalEnergy === null, 'lesson1 演示运行不应覆写 finalEnergy');
 
 // ================= 3. reset 不丢课程进度 =================
 

@@ -207,7 +207,7 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
   border-color: var(--c-primary);
   background: var(--c-primary-soft);
 }
-.form-hint { color: var(--c-muted); font-size: 15px; }
+.form-hint { color: var(--c-muted); font-size: 16px; }
 .form-err { color: var(--c-err); font-size: 15px; font-weight: 700; min-height: 22px; }
 
 /* ----------------------------------------------------------------- home -- */
@@ -346,6 +346,9 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
 .chip.selected { border-color: var(--c-primary); background: var(--c-primary-soft); }
 .chip.right { border-color: var(--c-ok); background: var(--c-ok-soft); }
 .chip.wrong { border-color: var(--c-err); background: var(--c-err-soft); }
+/* 对/错反馈图标与颜色并用（无障碍：不允许只靠颜色区分，风格与可视化的 真✓/假✗ 统一） */
+.chip.right::after { content: " ✓"; color: var(--c-ok); font-weight: 900; }
+.chip.wrong::after { content: " ✗"; color: var(--c-err); font-weight: 900; }
 .chip:disabled { cursor: default; opacity: .8; }
 
 /* 排序活动 */
@@ -548,7 +551,7 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
 }
 .var-card.vc-true { border-color: var(--c-ok); background: var(--c-ok-soft); }
 .var-card.vc-false { border-color: var(--c-err); background: var(--c-err-soft); }
-.vars-empty, .tl-empty { color: var(--c-muted); font-size: 15px; }
+.vars-empty, .tl-empty { color: var(--c-muted); font-size: 16px; }
 
 .timeline {
   list-style: none;
@@ -564,7 +567,7 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
   display: flex;
   gap: 8px;
   align-items: baseline;
-  font-size: 15px;
+  font-size: 16px; /* 孩子要读的"每一步小故事"正文（QA：儿童可读文字 ≥16px） */
   padding: 5px 8px;
   border-radius: 8px;
   background: var(--c-bg);
@@ -605,7 +608,7 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
   font-size: 16px;
 }
 .hint-item .hi-tag { font-weight: 800; color: var(--c-accent); margin-right: 4px; }
-.hint-note { color: var(--c-muted); font-size: 15px; }
+.hint-note { color: var(--c-muted); font-size: 16px; }
 
 /* ------------------------------------------------------------- 按钮条 ---- */
 .btnbar-wrap {

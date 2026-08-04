@@ -14,6 +14,9 @@
  *    （prediction 依赖未解时的输出）——此时测试改为求解验证：存在单槽位整数解使
  *    goal 达成，且解出程序的 stdout === expectedStdout。直接匹配的（如 trial-08-S
  *    存『正确值已填入』版）仍走直接比对。
+ *    bughunt 活动特例（与 slots 对称）：program 存的是带 bug 版，产品验证时机编译的
+ *    是修好版（app.js bugFixedSource / bugFixedProgram），因此这里在 IR 层做
+ *    wrongPiece→rightPiece 的运算符修补后重算 stdout，断言其 === expectedStdout。
  *
  * 运行：node js/tests/test-content-schema.js
  */
@@ -78,6 +81,51 @@ function solveSlotsForGoal(program, slots, goal) {
     if (solved && solved.finalVars[goal.name] === goal.value) return solved;
   }
   return null;
+}
+
+/* ---------------- bughunt 修好版求解（与 app.js bugFixedProgram 同语义） ---------------- */
+
+var BUG_FIX_OPS = ['+', '-', '*', '/', '>', '>=', '<', '<=', '==', '!=', '&&', '||'];
+
+function tryFixExprNode(node, wrong, right) {
+  if (!node || typeof node !== 'object' || node.kind !== 'bin') return false;
+  var cur = null;
+  try { cur = IR.exprToCpp(node); } catch (e) { cur = null; }
+  if (cur === wrong) {
+    var orig = node.op;
+    for (var i = 0; i < BUG_FIX_OPS.length; i++) {
+      node.op = BUG_FIX_OPS[i];
+      try { if (IR.exprToCpp(node) === right) return true; } catch (e2) { /* 忽略 */ }
+    }
+    node.op = orig;
+  }
+  return tryFixExprNode(node.left, wrong, right) || tryFixExprNode(node.right, wrong, right);
+}
+
+function fixStepInPlace(step, wrong, right) {
+  if (!step || typeof step !== 'object') return false;
+  if (step.expr && tryFixExprNode(step.expr, wrong, right)) return true;
+  if (step.cond && tryFixExprNode(step.cond, wrong, right)) return true;
+  var branches = ['then', 'else'];
+  for (var b = 0; b < branches.length; b++) {
+    var arr = step[branches[b]];
+    if (Array.isArray(arr)) {
+      for (var i = 0; i < arr.length; i++) {
+        if (fixStepInPlace(arr[i], wrong, right)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** 把带 bug 程序按 bug 描述修好后执行；修不了或执行报错返回 null。 */
+function solveBugFixedProgram(program, bug) {
+  if (!bug) return null;
+  var p = deepClone(program);
+  var step = p[bug.stepIndex];
+  if (!step || !fixStepInPlace(step, bug.wrongPiece, bug.rightPiece)) return null;
+  var r = IR.execute(p);
+  return r.error ? null : r;
 }
 
 Object.keys(packs).forEach(function (lessonId) {
@@ -174,6 +222,12 @@ Object.keys(packs).forEach(function (lessonId) {
               assert(!!solved && solved.stdout === a.compilerCheck.expectedStdout,
                 tag + '/' + lv + ': slots 达成目标后 stdout 应为 ' + JSON.stringify(a.compilerCheck.expectedStdout) +
                 '（实际 ' + JSON.stringify(solved && solved.stdout) + '，未解版直接输出 ' + JSON.stringify(res.stdout) + '）');
+            } else if (a.activityType === 'bughunt' && v.interaction && v.interaction.bug) {
+              // 带 bug 版存档：修好 bug 后比对（与产品验证时机一致，防止带 bug 输出蒙混过关）
+              var fixed = solveBugFixedProgram(v.program, v.interaction.bug);
+              assert(!!fixed && fixed.stdout === a.compilerCheck.expectedStdout,
+                tag + '/' + lv + ': bughunt 修好后 stdout 应为 ' + JSON.stringify(a.compilerCheck.expectedStdout) +
+                '（实际 ' + JSON.stringify(fixed && fixed.stdout) + '，带 bug 版直接输出 ' + JSON.stringify(res.stdout) + '）');
             } else {
               assert(false,
                 tag + '/' + lv + ': expectedStdout 匹配（期望 ' + JSON.stringify(a.compilerCheck.expectedStdout) +

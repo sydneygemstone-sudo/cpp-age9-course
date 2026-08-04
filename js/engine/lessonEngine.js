@@ -318,18 +318,15 @@ var CppLab = (typeof window !== 'undefined')
       return null;
     };
 
-    /** trace 全部发完后的收尾：状态置 done；lesson1 顺手保存 finalEnergy（承接源头） */
+    /**
+     * trace 全部发完后的收尾：状态置 done。
+     * 注意：这里**不再**写 lesson1.finalEnergy——「最后一次经引擎跑完的任意程序」会把
+     * 演示程序（act6/act8 重跑）的终值覆写进承接值，污染 lesson2-01 能量回忆。
+     * finalEnergy 的权威来源（方案 §8.2）单点写入在 app.js：
+     * 第一优先 = act7 作品卡保存时的最终能量；其次 = act5 达标时的 finalVars.energy。
+     */
     engine._finishRun = function () {
       engine._act.status = 'done';
-      var res = engine._act.execResult;
-      if (engine.lessonId === 'lesson1' && res && res.finalVars &&
-          typeof res.finalVars.energy === 'number') {
-        var e = res.finalVars.energy;
-        getStorage().update(function (s) {
-          s.lessons.lesson1 = s.lessons.lesson1 || { completed: false, activityStates: {} };
-          s.lessons.lesson1.finalEnergy = e;
-        });
-      }
     };
 
     /**

@@ -246,6 +246,30 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     return t.length > max ? t.slice(0, max) + '……' : t;
   }
 
+  /**
+   * 推荐依据的家长版措辞（QA P2）：pathSuggestion.reasons 是教师/内部口径
+   * （0–3 尺度、outcome、维度行话），家长没有尺度背景，直接放进报告像密码。
+   * 这里做内部行话 → 自然语言的映射；教师端看的仍是原始 reasons（不经此函数）。
+   */
+  function parentReasonText(r) {
+    var t = String(r == null ? '' : r);
+    t = t.replace(/核心维度中有\s*(\d+)\s*个处于\s*0[–-]1[：:]\s*/g, '有 $1 个核心思维环节目前需要较多支持（');
+    if (/核心思维环节目前需要较多支持（/.test(t) && t.indexOf('）') < 0) { t += '）'; }
+    t = t.replace(/未触发探索线条件（核心维度没有出现三个及以上\s*0[–-]1）/g, '大部分核心思维环节都能在少量支持下完成');
+    t = t.replace(/新情境迁移达到\s*2[–-]3/g, '能把学到的方法用到新题目上');
+    t = t.replace(/完成度高（outcome\s*≥\s*2）/g, '多数任务能独立完成');
+    t = t.replace(/outcome\s*≥\s*2/g, '能独立完成');
+    t = t.replace(/加速线全部证据同时出现[：:]?/g, '同时观察到以下几方面的扎实表现：');
+    t = t.replace(/尚未同时满足加速线全部证据，缺少[：:]/g, '还有几方面想再多观察一些：');
+    t = t.replace(/限制生效[：:]自称学过 C\+\+，但状态追踪证据不足（弱或未观察），按规则不进入加速线/g,
+      '孩子提到学过 C++，我们会在课程中进一步验证相应基础后再考虑加速');
+    t = t.replace(/限制生效[：:]数学与符号基础表现好，但按规则不单独提升编程路径/g,
+      '数学与符号基础表现好；编程起点还会综合其他表现来定');
+    t = t.replace(/另[：:]自称学过 C\+\+，但状态追踪证据不足，同样不满足加速线条件/g,
+      '孩子提到学过 C++，相应基础我们会在课程中继续验证');
+    return t;
+  }
+
   function item(text, tag, refs) {
     return { text: text, tag: tag, evidenceRefs: Array.isArray(refs) ? refs.slice() : [] };
   }
@@ -399,7 +423,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
       title: '六、推荐起点',
       items: [
         item('推荐从「' + PATH_LABEL[ps.suggested] + '」起步（置信度：' + CONFIDENCE_LABEL[ps.confidence] + '）。', TAGS.PRELIM, coreRefs),
-        item('推荐依据：' + ps.reasons.join('；'), TAGS.PRELIM, coreRefs),
+        item('推荐依据：' + ps.reasons.map(parentReasonText).join('；'), TAGS.PRELIM, coreRefs),
         item('三条线共享同一故事与成果，起点只决定支持方式，课程中可随表现上下调整。', TAGS.PRELIM, [])
       ]
     });

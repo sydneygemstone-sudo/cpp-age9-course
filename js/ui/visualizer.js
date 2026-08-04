@@ -64,6 +64,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     '  font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;',
     '  font-size:17px; color:var(--vz-ink); line-height:1.45;',
     '  display:flex; flex-direction:column; gap:10px; user-select:none;',
+    '  position:relative;', /* celebrate() 在 model=none 时把 .viz-stars 挂根元素，需要定位祖先兜底 */
     '}',
     /* ---- 舞台 ---- */
     '.viz-stage{position:relative; display:flex; align-items:flex-end; justify-content:center;',
