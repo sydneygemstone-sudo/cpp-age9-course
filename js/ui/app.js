@@ -187,11 +187,48 @@ var CppLab = (typeof window !== 'undefined')
     applyAnimSetting(s.settings && s.settings.anim !== false);
     applyTheme(s.theme);
     refreshTrialGateFromStorage();
+    startTeacherControlSync();
     if (!s.nickname) {
       renderOnboarding();
     } else {
       renderHome();
     }
+  }
+
+  /**
+   * 教师端控制同步：hints.js 的 H5 解锁是每页内存态，教师 tab 通过
+   * session.teacherControls.h5Unlocked 双写传递——孩子端监听 storage 事件 + 轮询兜底，
+   * 同步调用 Hints.unlockH5/relockH5，教师解锁才能到达孩子 tab。
+   */
+  function startTeacherControlSync() {
+    if (!CppLab.Hints || typeof CppLab.Hints.unlockH5 !== 'function') return;
+    function syncOnce() {
+      var s;
+      try { s = session(); } catch (e) { return; }
+      var map = (s && s.teacherControls && s.teacherControls.h5Unlocked) || {};
+      var id;
+      for (id in map) {
+        if (!Object.prototype.hasOwnProperty.call(map, id)) continue;
+        var want = !!map[id];
+        var now = !!CppLab.Hints.isH5Unlocked(id);
+        if (want && !now) {
+          CppLab.Hints.unlockH5(id);
+          // 当前活动的提示面板即时反映解锁状态
+          if (S.ui && S.ui.activity && S.ui.activity.id === id) renderHintPanel();
+        } else if (!want && now) {
+          CppLab.Hints.relockH5(id);
+          if (S.ui && S.ui.activity && S.ui.activity.id === id) renderHintPanel();
+        }
+      }
+    }
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('storage', function () {
+        syncOnce();
+        refreshTrialGateFromStorage();
+      });
+    }
+    setInterval(syncOnce, 4000);
+    syncOnce();
   }
 
   function applyAnimSetting(on) {
@@ -491,6 +528,9 @@ var CppLab = (typeof window !== 'undefined')
     if (Array.isArray(cardData.events) && cardData.events.length) {
       c.appendChild(el('div', 'ac-line', '故事事件：' + cardData.events.join('、')));
     }
+    if (cardData.verified === true) {
+      c.appendChild(el('div', 'ac-line', '✅ 已通过真实 C++ 验证'));
+    }
     if (cardData.savedAt) {
       c.appendChild(el('div', 'ac-line', '收藏于 ' + String(cardData.savedAt).slice(0, 10)));
     }
@@ -686,7 +726,8 @@ var CppLab = (typeof window !== 'undefined')
     S.ui = {
       activity: activity,
       variant: variant,
-      type: activity.activityType,
+      // 变体可用 activityTypeOverride 覆盖活动级类型（如 trial-08 三档交互差异化）
+      type: (variant && variant.activityTypeOverride) || activity.activityType,
       completed: alreadyDone,          // 已完成的活动允许重玩但不再计证据
       predicted: false,
       predictedCorrect: null,
@@ -702,6 +743,7 @@ var CppLab = (typeof window !== 'undefined')
       cpResults: [],
       interactionAttempts: 0,
       verifyAttempts: 0,
+      followUpDone: false,
       bugFixed: false,
       bugFoundLine: null,
       codeMode: null,
@@ -1299,6 +1341,8 @@ var CppLab = (typeof window !== 'undefined')
     var row = el('div', 'chip-row');
     var multi = !!inter.multi;
     var chosen = {};
+    // 无 correct 选项 = 纯观察记录（如 trial-01 兴趣选择）：任选即完成，不判对错
+    var hasCorrect = (inter.options || []).some(function (o) { return o && o.correct === true; });
 
     (inter.options || []).forEach(function (opt) {
       var c = el('button', 'chip', String(opt.label !== undefined ? opt.label : opt.id));
@@ -1311,6 +1355,19 @@ var CppLab = (typeof window !== 'undefined')
           return;
         }
         ui.interactionAttempts += 1;
+        if (!hasCorrect) {
+          c.classList.add('selected');
+          disableChips(row);
+          recordTrialObservation(opt.id);
+          if (!ui.completed) {
+            completeCurrent({
+              outcome: 'N',
+              answerOrCode: String(opt.id),
+              childAction: '观察类选择：' + String(opt.label !== undefined ? opt.label : opt.id)
+            });
+          }
+          return;
+        }
         if (opt.correct === true) {
           c.classList.add('right');
           disableChips(row);
@@ -1463,14 +1520,19 @@ var CppLab = (typeof window !== 'undefined')
     return undefined;
   }
 
-  function slotWriteValue(step, path, value) {
+  /** 按 path 写入原始节点（不包 lit）：用于换整个表达式（choices[].expr）或运算符字符串（choices[].value）。 */
+  function slotWriteRaw(step, path, node) {
     var segs = String(path || '').split('.');
-    var node = step;
+    var cur = step;
     for (var i = 0; i < segs.length - 1; i++) {
-      if (!node[segs[i]]) node[segs[i]] = {};
-      node = node[segs[i]];
+      if (!cur[segs[i]]) cur[segs[i]] = {};
+      cur = cur[segs[i]];
     }
-    node[segs[segs.length - 1]] = { kind: 'lit', value: value };
+    cur[segs[segs.length - 1]] = node;
+  }
+
+  function slotWriteValue(step, path, value) {
+    slotWriteRaw(step, path, { kind: 'lit', value: value });
   }
 
   function renderSlots(host, inter) {
@@ -1516,7 +1578,14 @@ var CppLab = (typeof window !== 'undefined')
     function applyValue(v) {
       var step = slotGetStep(ui.workProgram, slot.stepIndex);
       if (!step) { toast('这个槽位好像坏掉了，找老师看看'); return; }
-      slotWriteValue(step, slot.path, v);
+      // choice 槽位约定：{id,label,expr}=整体换成该 IR 表达式；{id,label,value}=写入原始值（如运算符）
+      if (v && typeof v === 'object') {
+        if (v.expr) slotWriteRaw(step, slot.path, deepClone(v.expr));
+        else if ('value' in v) slotWriteRaw(step, slot.path, v.value);
+        else { toast('这个选项好像坏掉了，找老师看看'); return; }
+      } else {
+        slotWriteValue(step, slot.path, v);
+      }
       // 程序变了：运行态作废
       ui.localExec = null;
       ui.localCursor = 0;
@@ -1533,7 +1602,8 @@ var CppLab = (typeof window !== 'undefined')
 
     if (slot.inputType === 'choice' && Array.isArray(slot.choices)) {
       slot.choices.forEach(function (c) {
-        box.appendChild(btn(String(c), 'btn btn-sm', function () { applyValue(c); }));
+        var lbl = (c && typeof c === 'object') ? String(c.label !== undefined ? c.label : c.id) : String(c);
+        box.appendChild(btn(lbl, 'btn btn-sm', function () { applyValue(c); }));
       });
     } else {
       var input = el('input', 'predict-input');
@@ -1566,6 +1636,24 @@ var CppLab = (typeof window !== 'undefined')
     ui.interactionAttempts += 1;
 
     if (ok && !ui.completed) {
+      // 第 2 课：孩子的最终规则（所选门+符号+门槛）存入 session.lessons.lesson2.customRule
+      if (S.lessonId === 'lesson2' && CppLab.IR && ui.workProgram) {
+        var ruleText = '';
+        for (var ri = 0; ri < ui.workProgram.length; ri++) {
+          if (ui.workProgram[ri] && ui.workProgram[ri].op === 'if') {
+            try { ruleText = CppLab.IR.exprToCpp(ui.workProgram[ri].cond); } catch (e) { ruleText = ''; }
+            break;
+          }
+        }
+        if (!ruleText) { try { ruleText = CppLab.IR.toFocusCpp(ui.workProgram); } catch (e2) { ruleText = ''; } }
+        if (ruleText) {
+          Sto().update(function (ss) {
+            ss.lessons = ss.lessons || {};
+            ss.lessons.lesson2 = ss.lessons.lesson2 || { completed: false, customRule: null, activityStates: {}, pathConfirmed: false };
+            ss.lessons.lesson2.customRule = ruleText;
+          });
+        }
+      }
       completeCurrent({
         outcome: outcomeFromAttempts(ui.interactionAttempts),
         selfCorrection: ui.interactionAttempts > 1,
@@ -1856,6 +1944,32 @@ var CppLab = (typeof window !== 'undefined')
 
   /* ---------------------------- build ---------------------------- */
 
+  /** build 选项归一化：内容可给原始值（数字）或 {id,label[,effect]} 对象。 */
+  function buildOptId(opt) {
+    return (opt && typeof opt === 'object') ? opt.id : opt;
+  }
+  function buildOptLabel(opt, kind) {
+    if (opt && typeof opt === 'object' && opt.label !== undefined) return String(opt.label);
+    if (kind === 'skin') return skinDisplayName(String(opt));
+    return String(opt);
+  }
+
+  /** 把孩子的 build 选择合成 IR 程序：declare 初始能量 + 每事件一行 assign + 末尾 output。 */
+  function buildComposeProgram(pick) {
+    if (pick.initialEnergy === null || pick.initialEnergy === undefined) return null;
+    var steps = [{ op: 'declare', varType: 'int', name: 'energy', expr: { kind: 'lit', value: Number(pick.initialEnergy) } }];
+    pick.events.forEach(function (ev) {
+      var eff = ev && ev.effect;
+      if (!eff || ['+', '-', '*'].indexOf(eff.op) < 0) return;
+      steps.push({
+        op: 'assign', name: 'energy',
+        expr: { kind: 'bin', op: eff.op, left: { kind: 'var', name: 'energy' }, right: { kind: 'lit', value: Number(eff.amount) } }
+      });
+    });
+    steps.push({ op: 'output', expr: { kind: 'var', name: 'energy' } });
+    return steps;
+  }
+
   function renderBuild(host, inter) {
     var ui = S.ui;
     inter = inter || {};
@@ -1872,8 +1986,7 @@ var CppLab = (typeof window !== 'undefined')
       g.appendChild(el('div', 'bg-title', titleText));
       var row = el('div', 'chip-row');
       options.forEach(function (opt) {
-        var label = (kind === 'skin') ? skinDisplayName(String(opt)) : String(opt);
-        var c = el('button', 'chip', label);
+        var c = el('button', 'chip', buildOptLabel(opt, kind));
         c.type = 'button';
         c.addEventListener('click', function () {
           if (kind === 'events') {
@@ -1881,18 +1994,20 @@ var CppLab = (typeof window !== 'undefined')
             if (idx >= 0) ui.buildPick.events.splice(idx, 1);
             else ui.buildPick.events.push(opt);
             c.classList.toggle('selected');
+            refreshPreview();
           } else {
-            ui.buildPick[kind] = opt;
+            ui.buildPick[kind] = (kind === 'initialEnergy') ? Number(buildOptId(opt)) : buildOptId(opt);
             var all = row.querySelectorAll('.chip');
             for (var i = 0; i < all.length; i++) all[i].classList.remove('selected');
             c.classList.add('selected');
             // 实时预览
             if (S.viz) {
               try {
-                if (kind === 'skin') S.viz.setSkin(String(opt));
-                if (kind === 'initialEnergy') S.viz.setEnergy(Number(opt));
+                if (kind === 'skin') S.viz.setSkin(String(ui.buildPick.skin));
+                if (kind === 'initialEnergy') S.viz.setEnergy(Number(ui.buildPick.initialEnergy));
               } catch (e) { /* 忽略 */ }
             }
+            refreshPreview();
           }
         });
         row.appendChild(c);
@@ -1905,34 +2020,96 @@ var CppLab = (typeof window !== 'undefined')
     group('选择出发能量', choices.initialEnergy, 'initialEnergy');
     group('挑选故事事件（可以多选）', choices.events, 'events');
 
-    var save = btn('💾 保存我的作品卡', 'btn btn-primary', function () {
-      if (ui.completed) { toast('作品卡已经保存过啦，回首页就能看到'); return; }
-      var p = ui.buildPick;
-      if (Array.isArray(choices.skin) && choices.skin.length && !p.skin) { toast('先选一个机器人伙伴'); return; }
-      if (Array.isArray(choices.initialEnergy) && choices.initialEnergy.length && p.initialEnergy === null) { toast('再选一个出发能量'); return; }
+    // 故事预览：选择合成 IR 程序，本地跑一遍给孩子看结局能量
+    var preview = el('div', 'build-preview form-hint');
+    preview.style.marginTop = '10px';
+    card.appendChild(preview);
+    function refreshPreview() {
+      clearNode(preview);
+      var prog = buildComposeProgram(ui.buildPick);
+      if (!prog || !CppLab.IR) return;
+      var exec = CppLab.IR.execute(prog);
+      if (exec.error) {
+        preview.appendChild(document.createTextNode('这个组合让机器人卡住了：' + exec.error));
+      } else {
+        preview.appendChild(document.createTextNode('📖 故事预演：机器人最后的能量是 ' + String(exec.finalVars.energy) + ' 格。'));
+      }
+    }
+
+    var saveRow = el('div');
+    saveRow.style.marginTop = '14px';
+
+    function currentCardData(verified) {
       var s = session();
-      var cardData = {
-        title: s.nickname + ' 的作品',
-        skin: p.skin || s.robotSkin,
-        initialEnergy: p.initialEnergy,
-        events: p.events.slice(),
+      var prog = buildComposeProgram(ui.buildPick);
+      return {
+        title: (s.nickname || '我') + ' 的作品',
+        skin: ui.buildPick.skin || s.robotSkin,
+        initialEnergy: ui.buildPick.initialEnergy,
+        events: ui.buildPick.events.map(function (ev) { return buildOptLabel(ev, 'events'); }),
+        focusCode: (prog && CppLab.IR) ? CppLab.IR.toFocusCpp(prog) : '',
+        verified: !!verified,
         savedAt: new Date().toISOString()
       };
+    }
+
+    function saveCard(verified) {
+      var cardData = currentCardData(verified);
       var lessonId = S.lessonId;
       Sto().update(function (ss) {
         ss.lessons = ss.lessons || {};
         ss.lessons[lessonId] = ss.lessons[lessonId] || { completed: false, activityStates: {} };
         ss.lessons[lessonId].artifactCard = cardData;
       });
+      return cardData;
+    }
+
+    var save = btn('💾 保存我的作品卡', 'btn btn-primary', function () {
+      var p = ui.buildPick;
+      if (Array.isArray(choices.skin) && choices.skin.length && !p.skin) { toast('先选一个机器人伙伴'); return; }
+      if (Array.isArray(choices.initialEnergy) && choices.initialEnergy.length && p.initialEnergy === null) { toast('再选一个出发能量'); return; }
+      var cardData = saveCard(false);
+      if (ui.completed) { toast('作品卡更新好啦！'); return; }
       completeCurrent({
         outcome: 2,
         answerOrCode: JSON.stringify(cardData),
         childAction: '完成创作并保存作品卡'
       });
     });
-    save.style.marginTop = '14px';
-    card.appendChild(save);
+    saveRow.appendChild(save);
+
+    // 真实 C++ 验证：合成程序送真实编译，成功才打「已通过真实 C++ 验证」标记
+    var verify = btn('🧪 用真实C++验证我的故事', 'btn', function () {
+      var prog = buildComposeProgram(ui.buildPick);
+      if (!prog || !CppLab.IR || !CppLab.Compiler) { toast('先把作品拼完整（要选出发能量哦）'); return; }
+      var localOut = CppLab.IR.execute(prog).stdout;
+      verify.disabled = true;
+      verify.textContent = '⏳ 验证中…';
+      CppLab.Compiler.compile({
+        activityId: ui.activity.id,
+        source: CppLab.IR.toFullCpp(prog),
+        stdin: '',
+        mode: 'verify',
+        program: prog
+      }).then(function (res) {
+        verify.disabled = false;
+        verify.textContent = '🧪 用真实C++验证我的故事';
+        if (res && res.real === true && res.status === 'ok' && res.stdout === localOut) {
+          saveCard(true);
+          showFeedback('ok', '真实C++编译通过！', '作品卡打上了「已通过真实 C++ 验证」的印章！', []);
+        } else if (res && res.real === true) {
+          showFeedback('warn', '编译器有话要说', '真实编译结果和预演不太一样，叫老师一起来看看。', []);
+        } else {
+          showFeedback('warn', '概念演示', '⚠️ 概念演示——真实编译暂不可用。作品卡先不打验证印章。', []);
+        }
+      });
+    });
+    verify.style.marginLeft = '8px';
+    saveRow.appendChild(verify);
+
+    card.appendChild(saveRow);
     host.appendChild(card);
+    refreshPreview();
   }
 
   /* ======================================================================
@@ -1963,6 +2140,17 @@ var CppLab = (typeof window !== 'undefined')
       var chips = row.querySelectorAll('.chip, .btn, input');
       for (var i = 0; i < chips.length; i++) chips[i].disabled = true;
       refreshButtons();
+
+      // 同一步可挂多个检查点（如 lesson1-03-A 的 afterStep:2 双问）：答完接着问下一个
+      var cps = (ui.variant.interaction && ui.variant.interaction.checkpoints) || [];
+      for (var j = 0; j < cps.length; j++) {
+        if (cps[j].afterStep === cp.afterStep && !ui.cpResults[j]) {
+          ui.pendingCp = { index: j, cp: cps[j] };
+          setTimeout(function () { renderCheckpointCard(); }, 1100);
+          return;
+        }
+      }
+
       // 若已走到末尾且全部检查点回答完，收尾
       if (ui.runFinished) maybeFinishTrace();
       setTimeout(function () {
@@ -2390,7 +2578,7 @@ var CppLab = (typeof window !== 'undefined')
           var box = el('div', 'friendly-err');
           box.appendChild(el('div', 'fe-msg', fe.message || '有一个小问题'));
           if (fe.hint) box.appendChild(el('div', 'fe-hint', '💡 ' + fe.hint));
-          if (typeof fe.line === 'number') box.appendChild(el('div', 'fe-hint', '（大概在第 ' + fe.line + ' 行附近）'));
+          if (typeof fe.line === 'number') box.appendChild(el('div', 'fe-hint', '（大概在完整程序的第 ' + fe.line + ' 行附近，可以点「🔭 查看完整程序」找找看）'));
           host.appendChild(box);
         });
       } else {
@@ -2500,6 +2688,24 @@ var CppLab = (typeof window !== 'undefined')
     refreshButtons();
   }
 
+  /** 试听观察记录：兴趣选择写 interests，aiHabit 活动写 aiHabit（CONTRACT §7 字段） */
+  function recordTrialObservation(optionId) {
+    var ui = S.ui;
+    if (!ui || S.lessonId !== 'trial' || !Sto()) return;
+    Sto().update(function (ss) {
+      ss.lessons = ss.lessons || {};
+      ss.lessons.trial = ss.lessons.trial || { completed: false, activityStates: {}, interests: [], aiHabit: null };
+      if (ui.activity.aiHabit) {
+        ss.lessons.trial.aiHabit = String(optionId);
+      } else {
+        if (!Array.isArray(ss.lessons.trial.interests)) ss.lessons.trial.interests = [];
+        if (ss.lessons.trial.interests.indexOf(String(optionId)) < 0) {
+          ss.lessons.trial.interests.push(String(optionId));
+        }
+      }
+    });
+  }
+
   function completeCurrent(opts) {
     var ui = S.ui;
     if (!ui || ui.completed) return;
@@ -2518,12 +2724,139 @@ var CppLab = (typeof window !== 'undefined')
 
     var lessonDone = !!(res && res.lessonDone);
     var isLast = S.engine.currentIndex + 1 >= S.engine.getActivities().length;
-
-    showFeedback('ok', pick(PRAISES), ui.activity.successCriteriaChildText || '这个任务完成啦！', [
+    var doneActions = [
       (lessonDone || isLast)
         ? { label: '🏅 去领我的徽章！', primary: true, onClick: function () { renderLessonEnd(); } }
         : { label: '下一个任务！', primary: true, onClick: function () { gotoNextActivity(); } }
-    ]);
+    ];
+
+    // 组合型活动：主交互完成后追加渲染 followUp 第二段轻交互
+    var fu = ui.variant && ui.variant.interaction && ui.variant.interaction.followUp;
+    if (fu && !ui.followUpDone) {
+      renderFollowUp(fu, function () {
+        showFeedback('ok', pick(PRAISES), ui.activity.successCriteriaChildText || '这个任务完成啦！', doneActions);
+      });
+      return;
+    }
+
+    showFeedback('ok', pick(PRAISES), ui.activity.successCriteriaChildText || '这个任务完成啦！', doneActions);
+  }
+
+  /**
+   * followUp 第二段轻交互（内容 schema 扩展 2）：
+   * - choice 有 correct：判对错，答对进入 onDone；答错鼓励重试
+   * - choice 无 correct：纯观察记录（不判分），任选即过；试听侧写 interests/aiHabit
+   * - slots：单/多槽位改值，按 goal（finalVar）判定
+   */
+  function renderFollowUp(fu, onDone) {
+    var ui = S.ui;
+    var host = document.getElementById('feedback-area');
+    if (!host) { ui.followUpDone = true; onDone(); return; }
+    clearNode(host);
+
+    function finish() {
+      ui.followUpDone = true;
+      setTimeout(onDone, 900);
+    }
+
+    var card = el('div', 'feedback-card fb-ok');
+    card.appendChild(el('div', 'fb-title', '⭐ 再来一个小挑战'));
+
+    if (fu.type === 'choice') {
+      card.appendChild(el('p', null, fu.question || ''));
+      var row = el('div', 'chip-row');
+      var hasCorrect = (fu.options || []).some(function (o) { return o && o.correct === true; });
+      var answered = false;
+      (fu.options || []).forEach(function (opt) {
+        var c = el('button', 'chip', String(opt.label !== undefined ? opt.label : opt.id));
+        c.type = 'button';
+        c.addEventListener('click', function () {
+          if (answered) return;
+          if (!hasCorrect) {
+            answered = true;
+            c.classList.add('selected');
+            disableChips(row);
+            recordTrialObservation(opt.id);
+            row.parentNode.appendChild(el('p', 'predict-done', '记下来啦！'));
+            finish();
+            return;
+          }
+          if (opt.correct === true) {
+            answered = true;
+            c.classList.add('right');
+            disableChips(row);
+            row.parentNode.appendChild(el('p', 'predict-done', pick(PRAISES)));
+            finish();
+          } else {
+            c.classList.add('wrong');
+            c.disabled = true;
+            toast('再想想看？');
+          }
+        });
+        row.appendChild(c);
+      });
+      card.appendChild(row);
+    } else if (fu.type === 'slots' && Array.isArray(fu.slots)) {
+      var baseProgram = activeProgram();
+      if (!baseProgram || !CppLab.IR) { ui.followUpDone = true; onDone(); return; }
+      var work = deepClone(baseProgram);
+      var goal = fu.goal || null;
+      var goalText = (goal && goal.type === 'finalVar')
+        ? '目标：让 ' + goal.name + ' 最后变成 ' + goal.value + '。'
+        : (goal && goal.type === 'stdout' ? '目标：让输出变成「' + goal.value + '」。' : '');
+      if (goalText) card.appendChild(el('p', null, goalText));
+
+      var tryRow = el('div');
+      fu.slots.forEach(function (slot) {
+        var box = el('div', 'slot-editor');
+        box.appendChild(el('span', null, (slot.label || '槽位') + '：'));
+        function tryValue(v) {
+          var step = slotGetStep(work, slot.stepIndex);
+          if (!step) return;
+          slotWriteValue(step, slot.path, v);
+          var exec = CppLab.IR.execute(work);
+          var ok = false;
+          if (goal && goal.type === 'finalVar') ok = valEq((exec.finalVars || {})[goal.name], goal.value);
+          else if (goal && goal.type === 'stdout') ok = valEq(exec.stdout, goal.value);
+          else ok = !exec.error;
+          clearNode(tryRow);
+          if (ok) {
+            tryRow.appendChild(el('p', 'predict-done', '太棒了，正好达成目标！'));
+            finish();
+          } else {
+            tryRow.appendChild(el('p', 'bug-note', '这次' + (goal && goal.type === 'finalVar' ? (' ' + goal.name + ' 变成了 ' + String((exec.finalVars || {})[goal.name])) : '还没达成目标') + '，再试一个数？'));
+          }
+        }
+        if (slot.inputType === 'choice' && Array.isArray(slot.choices)) {
+          slot.choices.forEach(function (cv) {
+            box.appendChild(btn(String(cv), 'btn btn-sm', function () { tryValue(cv); }));
+          });
+        } else {
+          var input = el('input', 'predict-input');
+          input.type = 'number';
+          var ok2 = btn('试试看', 'btn btn-sm btn-accent', function () {
+            if (input.value === '') { input.focus(); return; }
+            tryValue(Number(input.value));
+          });
+          input.addEventListener('keydown', function (e) { if (e.key === 'Enter') ok2.click(); });
+          box.appendChild(input);
+          box.appendChild(ok2);
+        }
+        card.appendChild(box);
+      });
+      card.appendChild(tryRow);
+    } else {
+      // 未知 followUp 类型：不阻断流程
+      ui.followUpDone = true;
+      onDone();
+      return;
+    }
+
+    var skip = btn('先跳过', 'btn btn-sm btn-ghost', function () { finish(); });
+    skip.style.marginTop = '8px';
+    card.appendChild(skip);
+    host.appendChild(card);
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function gotoNextActivity() {
