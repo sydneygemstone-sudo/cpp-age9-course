@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>教师控制台 · 九岁儿童 C++ 互动课程</title>
+<style>
+/* ============================================================
+ * 教师端样式（自包含，不依赖 css/main.css，避免跨文件耦合）
+ * 色彩 token 与 CONTRACT §13 保持一致。
+ * ============================================================ */
+:root {
+  --c-bg: #f7f9fc;
+  --c-card: #fff;
+  --c-primary: #3b82f6;
+  --c-accent: #f59e0b;
+  --c-ok: #22c55e;
+  --c-err: #ef4444;
+  --c-ink: #1e293b;
+  --c-muted: #64748b;
+  --radius: 14px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-family: system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+}
+button { font-family: inherit; }
+
+/* ---------- PIN 门 ---------- */
+#pin-gate {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--c-bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.pin-box {
+  background: var(--c-card); border-radius: var(--radius);
+  box-shadow: 0 8px 30px rgba(30,41,59,.12);
+  padding: 32px 36px; width: 340px; text-align: center;
+}
+.pin-box h1 { font-size: 19px; margin: 0 0 6px; }
+.pin-box p { color: var(--c-muted); font-size: 13px; margin: 0 0 18px; }
+.pin-box input {
+  width: 100%; font-size: 22px; letter-spacing: 8px; text-align: center;
+  padding: 10px; border: 2px solid #cbd5e1; border-radius: 10px; outline: none;
+}
+.pin-box input:focus { border-color: var(--c-primary); }
+.pin-box .pin-err { color: var(--c-err); font-size: 13px; min-height: 20px; margin: 8px 0 4px; }
+.pin-box.shake { animation: pinshake .3s; }
+@keyframes pinshake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+
+/* ---------- 顶栏 ---------- */
+#topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--c-card); border-bottom: 1px solid #e2e8f0;
+  padding: 8px 18px;
+}
+.topbar-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.topbar-title { font-size: 16px; font-weight: 700; margin-right: 4px; }
+.topbar-sub { color: var(--c-muted); font-size: 12px; }
+.top-spacer { flex: 1; }
+.sync-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c-ok); margin-right: 4px; }
+#anchor-nav { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+#anchor-nav a {
+  text-decoration: none; color: var(--c-ink); font-size: 13px;
+  background: #eef2f7; border-radius: 999px; padding: 3px 14px;
+}
+#anchor-nav a:hover { background: #dbe6f5; }
+
+/* ---------- 通用卡片 ---------- */
+main { max-width: 1180px; margin: 0 auto; padding: 16px 18px 80px; }
+section { margin-bottom: 26px; }
+section > h2 {
+  font-size: 16px; margin: 0 0 10px; padding-left: 10px;
+  border-left: 4px solid var(--c-primary);
+}
+section > .sec-tip { color: var(--c-muted); font-size: 12px; margin: -6px 0 10px 14px; }
+.card {
+  background: var(--c-card); border-radius: var(--radius);
+  border: 1px solid #e2e8f0; padding: 14px 16px; margin-bottom: 12px;
+}
+.card h3 { font-size: 14px; margin: 0 0 8px; }
+.card .ctl-tip { color: var(--c-muted); font-size: 12px; margin: 2px 0 8px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+/* ---------- 徽章 ---------- */
+.badge {
+  display: inline-block; font-size: 12px; padding: 1px 10px;
+  border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
+}
+.badge-path { background: #eef4ff; color: #1e40af; border-color: #93c5fd; font-weight: 600; }
+.badge-ok   { background: #e8f7ee; color: #166534; border-color: #86efac; }
+.badge-warn { background: #fff7e8; color: #92400e; border-color: #fcd34d; }
+.badge-err  { background: #feecec; color: #991b1b; border-color: #fca5a5; }
+.badge-mut  { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  display: inline-block; border: 1px solid #cbd5e1; background: #fff;
+  color: var(--c-ink); border-radius: 10px; padding: 5px 14px;
+  font-size: 13px; cursor: pointer;
+}
+.btn:hover { background: #f1f5f9; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary { background: var(--c-primary); border-color: var(--c-primary); color: #fff; }
+.btn-primary:hover { background: #2f6fe0; }
+.btn-danger { background: #fff; border-color: var(--c-err); color: var(--c-err); }
+.btn-danger:hover { background: #fef2f2; }
+.btn-sm { padding: 2px 10px; font-size: 12px; border-radius: 8px; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ---------- 课程/活动切换 ---------- */
+.lesson-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.lesson-tab {
+  border: 1px solid #cbd5e1; background: #fff; border-radius: 10px;
+  padding: 4px 14px; font-size: 13px; cursor: pointer;
+}
+.lesson-tab.active { background: var(--c-primary); border-color: var(--c-primary); color: #fff; font-weight: 600; }
+
+/* ---------- 表格 ---------- */
+table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.tbl th, table.tbl td { border-bottom: 1px solid #eef2f7; padding: 5px 8px; text-align: left; vertical-align: top; }
+table.tbl th { color: var(--c-muted); font-weight: 600; white-space: nowrap; }
+
+/* ---------- 代码块 ---------- */
+pre.code {
+  background: #0f172a; color: #e2e8f0; border-radius: 10px;
+  padding: 10px 14px; font-size: 12.5px; line-height: 1.7;
+  overflow-x: auto; font-family: ui-monospace, Menlo, Consolas, monospace;
+  margin: 6px 0;
+}
+.kv { color: var(--c-muted); font-size: 12px; }
+.kv b { color: var(--c-ink); font-weight: 600; }
+
+/* ---------- 证据流 ---------- */
+.evi-row { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: #fff; }
+.evi-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12.5px; }
+.evi-body { font-size: 13px; margin-top: 4px; }
+.evi-note { color: #92400e; font-size: 12.5px; margin-top: 3px; }
+.evi-edit { margin-top: 8px; border-top: 1px dashed #e2e8f0; padding-top: 8px; }
+.evi-edit textarea, .draft-item textarea {
+  width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 8px;
+  font-family: inherit; font-size: 13px; resize: vertical;
+}
+select, input[type="text"], input[type="password"] {
+  border: 1px solid #cbd5e1; border-radius: 8px; padding: 4px 8px;
+  font-family: inherit; font-size: 13px; background: #fff;
+}
+
+/* ---------- 六卡 ---------- */
+.tcards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 980px) { .tcards { grid-template-columns: 1fr; } }
+.tcard { background: var(--c-card); border: 1px solid #e2e8f0; border-radius: var(--radius); padding: 12px 14px; }
+.tcard h4 { margin: 0 0 6px; font-size: 13.5px; }
+.tcard h4 .tcard-no { color: var(--c-primary); margin-right: 4px; }
+.tcard ul, .tcard ol { margin: 4px 0; padding-left: 20px; }
+.tcard li { margin-bottom: 3px; }
+.tcard p { margin: 4px 0; }
+
+/* ---------- 报告草稿 ---------- */
+.draft-sec { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: #fff; }
+.draft-sec h4 { margin: 0 0 8px; font-size: 14px; }
+.draft-item { display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-start; }
+.draft-item .draft-item-ctl { display: flex; flex-direction: column; gap: 4px; }
+
+/* ---------- 弹窗 ---------- */
+#modal-root .modal-mask {
+  position: fixed; inset: 0; z-index: 500; background: rgba(15,23,42,.45);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-box {
+  background: var(--c-card); border-radius: var(--radius); max-width: 720px;
+  width: 100%; max-height: 86vh; overflow-y: auto; padding: 18px 20px;
+  box-shadow: 0 12px 40px rgba(15,23,42,.25);
+}
+.modal-box h3 { margin: 0 0 10px; font-size: 16px; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+/* ---------- 其他 ---------- */
+.warn-banner {
+  background: #fff7e8; border: 1px solid #fcd34d; color: #92400e;
+  border-radius: 10px; padding: 8px 12px; font-size: 12.5px; margin-bottom: 12px;
+}
+.hi-banner {
+  background: #eef4ff; border: 1px solid #93c5fd; color: #1e40af;
+  border-radius: 10px; padding: 10px 14px; font-size: 13.5px; font-weight: 600; margin-bottom: 12px;
+}
+.muted { color: var(--c-muted); }
+.empty-tip { color: var(--c-muted); font-size: 13px; padding: 8px 2px; }
+hr.sep { border: none; border-top: 1px dashed #e2e8f0; margin: 10px 0; }
+</style>
+</head>
+<body>
+
+<!-- 教师 PIN 门：默认 8888，可在控制区修改（存本机 localStorage） -->
+<div id="pin-gate">
+  <div class="pin-box" id="pin-box">
+    <h1>教师控制台</h1>
+    <p>请输入教师 PIN 进入（默认 8888，可在进入后的「控制区」修改）。<br>本页为教师内部页面，请不要投屏给孩子。</p>
+    <input id="pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="····">
+    <div class="pin-err" id="pin-err"></div>
+    <button class="btn btn-primary" id="pin-submit" style="width:100%;padding:8px;">进入控制台</button>
+  </div>
+</div>
+
+<div id="teacher-root" hidden>
+  <header id="topbar">
+    <div class="topbar-row" id="topbar-info"><!-- teacher.js 填充：标题/昵称/支架/同步状态 --></div>
+    <div class="topbar-row" style="margin-top:8px;">
+      <div class="lesson-tabs" id="lesson-tabs"><!-- 课程切换 --></div>
+      <div class="top-spacer"></div>
+      <div class="btn-row" id="activity-nav"><!-- 活动前后切换 --></div>
+    </div>
+    <nav id="anchor-nav">
+      <a href="#sec-live">实时区</a>
+      <a href="#sec-cards">教师六卡</a>
+      <a href="#sec-evidence">证据流</a>
+      <a href="#sec-controls">控制区</a>
+      <a href="#sec-report">报告区</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="warn-banner">
+      提醒：本页可显示支架档（E/S/A）、诊断维度与完成度等教师内部信息。按课程红线，这些内容一律不出现在儿童端；
+      请勿把本页面投屏或展示给孩子和家长。家长只看「报告区」确认后的打印版报告。
+    </div>
+
+    <section id="sec-live">
+      <h2>实时区</h2>
+      <div class="sec-tip">跟随孩子端（index.html）的进度自动刷新：监听浏览器存储事件，另有 2 秒轮询兜底。孩子端与本页需在同一浏览器打开。</div>
+      <div id="live-panel"></div>
+    </section>
+
+    <section id="sec-cards">
+      <h2>教师六卡（当前活动）</h2>
+      <div class="sec-tip">每项活动的授课卡：30 秒知识真相 / 推荐演示 / 三个追问 / 常见误区 / 三步降阶 / 加速扩展。开讲前扫读第①张即可。</div>
+      <div id="cards-panel"></div>
+    </section>
+
+    <section id="sec-evidence">
+      <h2>证据流</h2>
+      <div class="sec-tip">时间倒序的全部课堂证据。可修改完成度与教师备注（原值自动留档），也可把误录的条目改为「N 本次未观察」。</div>
+      <div id="evidence-panel"></div>
+    </section>
+
+    <section id="sec-controls">
+      <h2>控制区</h2>
+      <div class="sec-tip">课堂上的教师操作开关。每个控件下方有一句话说明，照着用即可，不需要看代码。</div>
+      <div id="controls-panel"></div>
+    </section>
+
+    <section id="sec-report">
+      <h2>报告区</h2>
+      <div class="sec-tip">路径建议、能力向量与家长报告。家长报告必须由你逐条确认后才能打印——系统草稿只是底稿。</div>
+      <div id="report-panel"></div>
+      <div id="draft-panel"></div>
+    </section>
+  </main>
+</div>
+
+<div id="modal-root"></div>
+
+<!-- 脚本顺序 = CONTRACT §2（最后一行为 teacher.js） -->
+<script src="js/engine/ir.js"></script>
+<script src="js/engine/storage.js"></script>
+<script src="js/engine/evidence.js"></script>
+<script src="js/engine/hints.js"></script>
+<script src="js/engine/compiler.js"></script>
+<script src="js/engine/report.js"></script>
+<script src="js/content/trial.js"></script>
+<script src="js/content/lesson1.js"></script>
+<script src="js/content/lesson2.js"></script>
+<script src="js/engine/lessonEngine.js"></script>
+<script src="js/ui/visualizer.js"></script>
+<script src="js/ui/teacher.js"></script>
+</body>
+</html>
