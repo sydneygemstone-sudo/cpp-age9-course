@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>教师控制台 · 九岁儿童 C++ 互动课程</title>
 <style>
 /* ============================================================
@@ -194,6 +194,16 @@ select, input[type="text"], input[type="password"] {
 .muted { color: var(--c-muted); }
 .empty-tip { color: var(--c-muted); font-size: 13px; padding: 8px 2px; }
 hr.sep { border: none; border-top: 1px dashed #e2e8f0; margin: 10px 0; }
+
+/* ---------- 基础响应式（§13-2：卡片堆叠、内容可滚，不要求 slide 化） ---------- */
+@media (max-width: 760px) {
+  main { padding: 12px 10px 60px; }
+  #topbar { padding: 8px 10px; }
+  table.tbl { display: block; overflow-x: auto; }   /* 宽表格自身横滚，页面不横滚 */
+  pre.code { max-width: 100%; }
+  .modal-box { max-height: 92vh; }
+  .btn, .lesson-tab { min-height: 40px; }
+}
 </style>
 </head>
 <body>

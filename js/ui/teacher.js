@@ -1461,11 +1461,39 @@ var CppLab = (typeof window !== 'undefined')
    * 刷新与跨 tab 同步
    * ------------------------------------------------------------------ */
 
+  /** 无会话：孩子端从未开始（无昵称、无证据、无任何活动状态） */
+  function isFreshSession() {
+    var s = state.session || {};
+    if (s.nickname) return false;
+    if ((s.evidence || []).length) return false;
+    var lessons = s.lessons || {};
+    for (var id in lessons) {
+      if (!Object.prototype.hasOwnProperty.call(lessons, id)) continue;
+      var st = (lessons[id] || {}).activityStates || {};
+      for (var k in st) {
+        if (Object.prototype.hasOwnProperty.call(st, k)) return false;
+      }
+    }
+    return true;
+  }
+
+  /** §13-2：无会话时给一句话空态，而不是满屏空卡 */
+  function renderFreshEmpty() {
+    $('live-panel').innerHTML =
+      '<div class="card"><div class="empty-tip">还没有学员会话：在同一浏览器打开儿童端（index.html），' +
+      '孩子填好昵称、进入任务后，这里会自动出现全部课堂面板（每 2 秒自动检查）。</div></div>';
+    ['cards-panel', 'evidence-panel', 'controls-panel', 'report-panel', 'draft-panel'].forEach(function (id) {
+      var n = $(id);
+      if (n) n.innerHTML = '';
+    });
+  }
+
   function refresh() {
     if (!state.authed) return;
     loadSession();
     ensurePosition();
     renderTopbar();
+    if (isFreshSession()) { renderFreshEmpty(); return; }
     renderLive();
     renderCards();
     if (!state.editingEvidenceId) renderEvidence();

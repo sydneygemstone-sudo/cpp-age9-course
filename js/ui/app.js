@@ -307,6 +307,45 @@ var CppLab = (typeof window !== 'undefined')
     var animOn = !(s.settings && s.settings.anim === false);
     var soundOn = !!(s.settings && s.settings.sound);
 
+    // ⛶ 全屏（§13-2）：requestFullscreen + webkit 回退；都不支持时提示添加到主屏幕
+    var fsBtn = el('button', 'toggle-btn', '⛶ 全屏');
+    fsBtn.type = 'button';
+    fsBtn.title = '切换全屏（iPad 也可以用 Safari 分享→添加到主屏幕）';
+    function fsIsOn() {
+      return !!(document.fullscreenElement || document.webkitFullscreenElement);
+    }
+    function fsUpdate() {
+      if (!document.body.contains(fsBtn)) {
+        document.removeEventListener('fullscreenchange', fsUpdate);
+        document.removeEventListener('webkitfullscreenchange', fsUpdate);
+        return;
+      }
+      fsBtn.textContent = fsIsOn() ? '⛶ 退出全屏' : '⛶ 全屏';
+    }
+    fsBtn.addEventListener('click', function () {
+      var rootEl = document.documentElement;
+      try {
+        if (fsIsOn()) {
+          if (document.exitFullscreen) document.exitFullscreen();
+          else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        } else if (rootEl.requestFullscreen) {
+          var p = rootEl.requestFullscreen();
+          if (p && typeof p.catch === 'function') {
+            p.catch(function () { toast('这台设备不让网页全屏：用 Safari 分享→添加到主屏幕，可获得全屏体验'); });
+          }
+        } else if (rootEl.webkitRequestFullscreen) {
+          rootEl.webkitRequestFullscreen();
+        } else {
+          toast('用 Safari 分享→添加到主屏幕，可获得全屏体验');
+        }
+      } catch (e) {
+        toast('用 Safari 分享→添加到主屏幕，可获得全屏体验');
+      }
+    });
+    document.addEventListener('fullscreenchange', fsUpdate);
+    document.addEventListener('webkitfullscreenchange', fsUpdate);
+    actions.appendChild(fsBtn);
+
     var animBtn = el('button', 'toggle-btn' + (animOn ? ' on' : ''), '✨ 动画：' + (animOn ? '开' : '关'));
     animBtn.type = 'button';
     animBtn.addEventListener('click', function () {
@@ -671,20 +710,23 @@ var CppLab = (typeof window !== 'undefined')
     center.id = 'center-col';
     grid.appendChild(center);
 
-    // ---- 右栏：状态透镜 ----
-    var right = el('div');
+    // ---- 右栏：状态透镜（<1200px 折叠成右下角「📊 状态」抽屉，§13-2） ----
+    var right = el('div', 'state-lens');
+
+    var lensClose = btn('✕ 收起', 'btn btn-sm lens-close', function () { closeLens(); });
+    right.appendChild(lensClose);
 
     var varsPanel = el('div', 'panel');
     varsPanel.appendChild(el('div', 'panel-title', '📦 变量卡'));
     var varsGrid = el('div', 'vars-grid');
-    varsGrid.appendChild(el('div', 'vars-empty', '程序跑起来后，这里会出现变量的小盒子'));
+    varsGrid.appendChild(el('div', 'vars-empty', '跑起来才有变量'));
     varsPanel.appendChild(varsGrid);
     right.appendChild(varsPanel);
 
     var tlPanel = el('div', 'panel');
     tlPanel.appendChild(el('div', 'panel-title', '🕒 执行时间线'));
     var tl = el('ol', 'timeline');
-    var tlEmpty = el('div', 'tl-empty', '每走一步，这里就会记下一行小故事');
+    var tlEmpty = el('div', 'tl-empty', '还没走第一步');
     tlPanel.appendChild(tlEmpty);
     tlPanel.appendChild(tl);
     right.appendChild(tlPanel);
@@ -696,26 +738,38 @@ var CppLab = (typeof window !== 'undefined')
     outPanel.appendChild(outBox);
     right.appendChild(outPanel);
 
-    var hintPanel = el('div', 'panel');
-    hintPanel.appendChild(el('div', 'panel-title', '💡 我的提示'));
+    // 提示面板：默认折叠成小按钮，有内容才展开（§13-2）
+    var hintPanel = el('div', 'panel hint-panel');
+    var hintToggle = el('button', 'hint-toggle', '💡 我的提示');
+    hintToggle.type = 'button';
+    hintToggle.title = '看看我领到的提示';
+    hintToggle.addEventListener('click', function () {
+      if (!S.ui) return;
+      S.ui.hintExpanded = !S.ui.hintExpanded;
+      renderHintPanel();
+    });
+    hintPanel.appendChild(hintToggle);
     var hintList = el('div', 'hint-list');
-    hintList.appendChild(el('div', 'hint-note', '卡住的时候，按下面的「求提示」按钮'));
     hintPanel.appendChild(hintList);
     right.appendChild(hintPanel);
 
     grid.appendChild(right);
     view.appendChild(grid);
 
-    // ---- 底部按钮条 ----
+    // ---- 状态抽屉呼出按钮 + 遮罩（仅 <1200px 由 CSS 显示） ----
+    var lensMask = el('div', 'lens-mask');
+    lensMask.addEventListener('click', function () { closeLens(); });
+    view.appendChild(lensMask);
+    var lensFab = btn('📊 状态', 'btn lens-fab', function () {
+      right.classList.add('open');
+      lensMask.classList.add('show');
+    });
+    view.appendChild(lensFab);
+
+    // ---- 底部按钮条（按活动动态渲染，见 renderButtonBar） ----
     var barWrap = el('div', 'btnbar-wrap');
     var bar = el('div', 'btnbar');
-    var bPredict = btn('🤔 先预测', 'btn', function () { focusPredict(); });
-    var bStep = btn('👣 单步', 'btn', function () { doStep(); });
-    var bRun = btn('▶ 运行', 'btn', function () { doRun(); });
-    var bReset = btn('🔄 重置', 'btn', function () { doReset(); });
-    var bVerify = btn('🧪 真实C++验证', 'btn', function () { doVerify(); });
-    var bHint = btn('💡 求提示', 'btn', function () { doHint(); });
-    [bPredict, bStep, bRun, bReset, bVerify, bHint].forEach(function (b) { bar.appendChild(b); });
+    bar.id = 'btnbar';
     barWrap.appendChild(bar);
     view.appendChild(barWrap);
 
@@ -723,13 +777,24 @@ var CppLab = (typeof window !== 'undefined')
 
     S.dom = {
       center: center, goal: goal, vizHost: vizHost,
+      grid: grid, rightCol: right,
+      varsPanel: varsPanel, tlPanel: tlPanel, outPanel: outPanel,
+      hintPanel: hintPanel, hintToggle: hintToggle,
+      lensFab: lensFab, lensMask: lensMask,
       varsGrid: varsGrid, timeline: tl, tlEmpty: tlEmpty, outBox: outBox,
       hintList: hintList,
-      bPredict: bPredict, bStep: bStep, bRun: bRun,
-      bReset: bReset, bVerify: bVerify, bHint: bHint
+      btnbar: bar,
+      bPredict: null, bStep: null, bRun: null,
+      bReset: null, bVerify: null, bHint: null
     };
 
     renderActivity();
+  }
+
+  function closeLens() {
+    var d = S.dom;
+    if (d.rightCol) d.rightCol.classList.remove('open');
+    if (d.lensMask) d.lensMask.classList.remove('show');
   }
 
   /* ======================================================================
@@ -800,12 +865,114 @@ var CppLab = (typeof window !== 'undefined')
     // 中栏
     renderCenter();
 
-    // 右栏清空
+    // 底部按钮条：按活动能力动态渲染（§13-2：用不上的按钮不出现）
+    renderButtonBar();
+
+    // 右栏：清空运行面板 + 按活动显隐状态透镜
     clearRunPanels();
-    renderHintPanel();
+    updateLensPanels();
 
     refreshButtons();
     refreshDots();
+  }
+
+  /** 本活动是否有可运行的 IR 程序（freeEdit 走真实编译，不算） */
+  function activityHasProgram() {
+    var ui = S.ui;
+    if (!ui || ui.type === 'freeEdit') return false;
+    var program = activeProgram();
+    return !!(program && program.length);
+  }
+
+  /** 本活动是否可以真实 C++ 验证（与 refreshButtons 的 canVerify 同口径） */
+  function activityCanVerify() {
+    var ui = S.ui;
+    if (!ui) return false;
+    return !!(
+      (ui.type === 'freeEdit') ||
+      (ui.codeMode === 'free') ||
+      (activityHasProgram() && ui.activity.compilerCheck && ui.activity.compilerCheck.enabled)
+    );
+  }
+
+  /**
+   * 儿童端是否有可用的提示入口（§13-2）：
+   * - 活动没配儿童可见的提示阶梯（或只有 teacherOnly 的 H5）→ 无入口；
+   * - 试听诊断闸门关闭时，提示由教师在教师端代读，儿童端没有入口。
+   * 没有入口时「求提示」按钮整个不渲染（而不是置灰）。
+   */
+  function hintEntryAvailable() {
+    var ui = S.ui;
+    if (!ui || !CppLab.Hints || typeof CppLab.Hints.next !== 'function') return false;
+    var ladder = (ui.activity && ui.activity.hintLadder) || [];
+    var childLevels = ladder.filter(function (h) { return h && !h.teacherOnly; });
+    if (!childLevels.length) return false;
+    if (S.lessonId === 'trial' &&
+        typeof CppLab.Hints.getTrialGate === 'function' && !CppLab.Hints.getTrialGate()) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * 底部按钮条动态渲染（§13-2）：
+   * - 无 prediction → 不渲染「先预测」；无 program → 不渲染「单步/运行」；
+   * - 不可验证 → 不渲染「真实C++验证」；无提示入口 → 不渲染「求提示」；
+   * - 「重置」始终保留。
+   */
+  function renderButtonBar() {
+    var d = S.dom;
+    var ui = S.ui;
+    if (!d.btnbar || !ui) return;
+    clearNode(d.btnbar);
+    d.bPredict = d.bStep = d.bRun = d.bReset = d.bVerify = d.bHint = null;
+
+    if (effPrediction()) {
+      d.bPredict = btn('🤔 先预测', 'btn', function () { focusPredict(); });
+      d.btnbar.appendChild(d.bPredict);
+    }
+    if (activityHasProgram()) {
+      d.bStep = btn('👣 单步', 'btn', function () { doStep(); });
+      d.bRun = btn('▶ 运行', 'btn', function () { doRun(); });
+      d.btnbar.appendChild(d.bStep);
+      d.btnbar.appendChild(d.bRun);
+    }
+    d.bReset = btn('🔄 重置', 'btn', function () { doReset(); });
+    d.btnbar.appendChild(d.bReset);
+    if (activityCanVerify()) {
+      d.bVerify = btn(ui.verifyBusy ? '⏳ 验证中…' : '🧪 真实C++验证', 'btn', function () { doVerify(); });
+      d.btnbar.appendChild(d.bVerify);
+    }
+    if (hintEntryAvailable()) {
+      d.bHint = btn('💡 求提示', 'btn', function () { doHint(); });
+      d.btnbar.appendChild(d.bHint);
+    }
+  }
+
+  /**
+   * 右栏状态透镜显隐（§13-2）：无 program 的活动隐藏变量卡/时间线/输出；
+   * 右栏全空时整栏收起（三栏布局重排为两栏），抽屉呼出按钮同步隐藏。
+   */
+  function updateLensPanels() {
+    var d = S.dom;
+    if (!d.varsPanel) return;
+    var showRun = activityHasProgram();
+    d.varsPanel.style.display = showRun ? '' : 'none';
+    d.tlPanel.style.display = showRun ? '' : 'none';
+    d.outPanel.style.display = showRun ? '' : 'none';
+    renderHintPanel(); // 自行决定提示面板显隐/折叠，并在末尾刷新整栏收起状态
+  }
+
+  /** 右栏是否还有可见面板：全空时整栏收起、抽屉按钮隐藏（renderHintPanel 末尾调用）。 */
+  function refreshLensChrome() {
+    var d = S.dom;
+    if (!d.rightCol) return;
+    var lensHasContent =
+      (d.varsPanel && d.varsPanel.style.display !== 'none') ||
+      (d.hintPanel && d.hintPanel.style.display !== 'none');
+    if (d.grid) d.grid.classList.toggle('no-lens', !lensHasContent);
+    if (d.lensFab) d.lensFab.style.display = lensHasContent ? '' : 'none';
+    if (!lensHasContent) closeLens();
   }
 
   function refreshDots() {
@@ -892,7 +1059,7 @@ var CppLab = (typeof window !== 'undefined')
     var d = S.dom;
     if (!d.varsGrid) return;
     clearNode(d.varsGrid);
-    d.varsGrid.appendChild(el('div', 'vars-empty', '程序跑起来后，这里会出现变量的小盒子'));
+    d.varsGrid.appendChild(el('div', 'vars-empty', '跑起来才有变量'));
     clearNode(d.timeline);
     d.tlEmpty.style.display = '';
     clearNode(d.outBox);
@@ -1306,11 +1473,14 @@ var CppLab = (typeof window !== 'undefined')
     d.center.appendChild(inter);
     renderInteraction(inter);
 
-    // 代码台
-    var codeHost = el('div', 'panel code-panel');
-    codeHost.id = 'code-host';
-    d.center.appendChild(codeHost);
-    renderCodePanel(codeHost);
+    // 代码台：无 program 且非自由编辑的活动整栏不渲染（§13-2），场景+交互占满
+    var program = activeProgram();
+    if ((program && program.length) || ui.type === 'freeEdit') {
+      var codeHost = el('div', 'panel code-panel');
+      codeHost.id = 'code-host';
+      d.center.appendChild(codeHost);
+      renderCodePanel(codeHost);
+    }
 
     // 反馈 + 编译结果区
     var fb = el('div');
@@ -2421,24 +2591,19 @@ var CppLab = (typeof window !== 'undefined')
 
     var modes = allowedCodeModes();
     if (ui.type === 'freeEdit') modes = ['free'];
+    // 只保留本活动真正可用的模式（free 模式需要 program 或本身是自由编辑活动）
+    modes = modes.filter(function (m) {
+      if (m === 'free' && ui.type !== 'freeEdit' && !program) return false;
+      return true;
+    });
+    if (modes.indexOf(ui.codeMode) < 0 && modes.length) ui.codeMode = modes[0];
 
     var MODE_LABEL = { blocks: '图块', focus: '聚焦代码', full: '完整程序', free: '自由编辑' };
 
-    var tabs = el('div', 'code-tabs');
-    modes.forEach(function (m) {
-      if (m === 'free' && ui.type !== 'freeEdit' && !program) return;
-      var t = el('button', 'code-tab' + (ui.codeMode === m ? ' active' : ''), MODE_LABEL[m]);
-      t.type = 'button';
-      t.addEventListener('click', function () {
-        ui.codeMode = m;
-        renderCodePanel(hostPanel);
-      });
-      tabs.appendChild(t);
-    });
-
-    // 「查看完整程序」透视按钮（所有档位可用，只读）
+    // 模式 tabs：只有一种可用时不显示 tabs 只显示内容（§13-2）；「查看完整程序」保留
+    var peek = null;
     if (program && CppLab.IR) {
-      var peek = btn('🔭 查看完整程序', 'btn btn-sm btn-ghost code-peek', function () {
+      peek = btn('🔭 查看完整程序', 'btn btn-sm btn-ghost code-peek', function () {
         openModal('完整的 C++ 程序', function (body) {
           body.appendChild(el('p', 'form-hint', '这就是机器人真正读的完整程序。现在看不懂也没关系，我们在一格一格点亮它！'));
           var full = CppLab.IR.toFullCpp(program);
@@ -2447,9 +2612,25 @@ var CppLab = (typeof window !== 'undefined')
           body.appendChild(buildCodeView(full.split('\n'), null, {}));
         });
       });
-      tabs.appendChild(peek);
     }
-    hostPanel.appendChild(tabs);
+    if (modes.length > 1 || peek) {
+      var tabs = el('div', 'code-tabs');
+      if (modes.length > 1) {
+        modes.forEach(function (m) {
+          var t = el('button', 'code-tab' + (ui.codeMode === m ? ' active' : ''), MODE_LABEL[m]);
+          t.type = 'button';
+          t.addEventListener('click', function () {
+            ui.codeMode = m;
+            renderCodePanel(hostPanel);
+            renderButtonBar();   // free 模式开/关会影响「真实C++验证」按钮的渲染
+            refreshButtons();
+          });
+          tabs.appendChild(t);
+        });
+      }
+      if (peek) tabs.appendChild(peek);
+      hostPanel.appendChild(tabs);
+    }
 
     var body = el('div');
     hostPanel.appendChild(body);
@@ -2696,7 +2877,7 @@ var CppLab = (typeof window !== 'undefined')
     var isFree = (ui.type === 'freeEdit' || ui.codeMode === 'free');
     ui.verifyBusy = true;
     ui.verifyAttempts += 1;
-    S.dom.bVerify.textContent = '⏳ 验证中…';
+    if (S.dom.bVerify) S.dom.bVerify.textContent = '⏳ 验证中…';
     refreshButtons();
 
     var crHost = document.getElementById('compile-area');
@@ -2718,7 +2899,7 @@ var CppLab = (typeof window !== 'undefined')
 
     CppLab.Compiler.compile(req).then(function (res) {
       ui.verifyBusy = false;
-      S.dom.bVerify.textContent = '🧪 真实C++验证';
+      if (S.dom.bVerify) S.dom.bVerify.textContent = '🧪 真实C++验证';
       // 教师端可观测性：最近一次真实验证的状态与降级原因写入 session（教师端展示）
       try {
         Sto().update(function (ss) {
@@ -2737,7 +2918,7 @@ var CppLab = (typeof window !== 'undefined')
     }, function () {
       // 契约上 compile 永远 resolve；这里只是最后一道保险
       ui.verifyBusy = false;
-      S.dom.bVerify.textContent = '🧪 真实C++验证';
+      if (S.dom.bVerify) S.dom.bVerify.textContent = '🧪 真实C++验证';
       renderCompileResult({ status: 'offline', real: false }, isFree);
       refreshButtons();
     });
@@ -2856,12 +3037,25 @@ var CppLab = (typeof window !== 'undefined')
   function renderHintPanel() {
     var d = S.dom;
     var ui = S.ui;
-    if (!d.hintList) return;
+    if (!d.hintList || !d.hintPanel) return;
     clearNode(d.hintList);
     var used = (CppLab.Hints && typeof CppLab.Hints.getUsed === 'function' && ui)
       ? CppLab.Hints.getUsed(ui.activity.id) : [];
+
+    // §13-2：没有提示入口且没领过提示 → 整个面板不出现
+    var show = !!ui && (hintEntryAvailable() || used.length > 0);
+    d.hintPanel.style.display = show ? '' : 'none';
+    if (!show) { refreshLensChrome(); return; }
+
+    // 默认折叠成小按钮；领到内容或孩子点开后展开
+    var expanded = !!(ui.hintExpanded || used.length);
+    d.hintPanel.classList.toggle('hint-collapsed', !expanded);
+    if (d.hintToggle) d.hintToggle.textContent = expanded ? '💡 我的提示' : '💡 提示';
+    if (!expanded) { refreshLensChrome(); return; }
+
     if (!used.length) {
-      d.hintList.appendChild(el('div', 'hint-note', '卡住的时候，按下面的「求提示」按钮'));
+      d.hintList.appendChild(el('div', 'hint-note', '卡住就按「求提示」'));
+      refreshLensChrome();
       return;
     }
     // 重新展示已领过的提示文本（按阶梯顺序）
@@ -2876,6 +3070,7 @@ var CppLab = (typeof window !== 'undefined')
         d.hintList.appendChild(item);
       }
     });
+    refreshLensChrome();
   }
 
   /** 状态提示条（锁定/用完等）只保留一条：追加前先清掉旧的同类 .hint-note，防止反复点出重复条。 */
@@ -2899,10 +3094,13 @@ var CppLab = (typeof window !== 'undefined')
     var d = S.dom;
 
     if (res && res.level) {
+      ui.hintExpanded = true;      // 有内容才展开（§13-2）
       renderHintPanel();
-      toast('新提示放到右边的「我的提示」里啦');
+      toast('新提示放到「我的提示」里啦');
       return;
     }
+    ui.hintExpanded = true;
+    renderHintPanel();
     if (res && res.aiDisabled) {
       clearNode(d.hintList);
       d.hintList.appendChild(el('div', 'hint-note', res.text || '现在的提示由老师亲自来给，举手问问老师吧！'));
@@ -3205,35 +3403,29 @@ var CppLab = (typeof window !== 'undefined')
   function refreshButtons() {
     var d = S.dom;
     var ui = S.ui;
-    if (!d.bPredict || !ui) return;
+    if (!d.bReset || !ui) return;
 
     var pred = effPrediction();
-    var program = activeProgram();
-    var hasProgram = !!(program && program.length) && ui.type !== 'freeEdit';
+    var hasProgram = activityHasProgram();
     var needPredict = !!pred && !ui.predicted;
-    var running = ui.useLocal
-      ? (ui.localExec && ui.localCursor > 0 && !ui.runFinished)
-      : (S.engine.getActivityState().status === 'running');
     var paused = !!ui.pendingCp;
-    var canVerify = !!(
-      (ui.type === 'freeEdit') ||
-      (ui.codeMode === 'free') ||
-      (hasProgram && ui.activity.compilerCheck && ui.activity.compilerCheck.enabled)
-    );
+    var canVerify = activityCanVerify();
 
-    // 可用性
-    d.bPredict.disabled = !pred || ui.predicted || ui.runFinished;
-    d.bStep.disabled = !hasProgram || paused || ui.verifyBusy || (ui.runFinished && !ui.useLocal && S.engine.getActivityState().status === 'done');
-    if (ui.runFinished) d.bStep.disabled = true;
-    d.bRun.disabled = d.bStep.disabled;
-    if (ui.type === 'bughunt' && ui.bugFixed) { d.bStep.disabled = true; d.bRun.disabled = true; }
+    // 可用性（按钮条已按活动动态渲染，这里只对存在的按钮设状态）
+    if (d.bPredict) d.bPredict.disabled = !pred || ui.predicted || ui.runFinished;
+    if (d.bStep) {
+      d.bStep.disabled = !hasProgram || paused || ui.verifyBusy || (ui.runFinished && !ui.useLocal && S.engine.getActivityState().status === 'done');
+      if (ui.runFinished) d.bStep.disabled = true;
+      if (ui.type === 'bughunt' && ui.bugFixed) d.bStep.disabled = true;
+    }
+    if (d.bRun) d.bRun.disabled = d.bStep ? d.bStep.disabled : true;
     d.bReset.disabled = ui.verifyBusy || paused;
-    d.bVerify.disabled = !canVerify || !!ui.verifyBusy;
-    d.bHint.disabled = false;
+    if (d.bVerify) d.bVerify.disabled = !canVerify || !!ui.verifyBusy;
+    if (d.bHint) d.bHint.disabled = false;
 
     // 高亮策略：任何时刻 .btn-primary <= 2
     [d.bPredict, d.bStep, d.bRun, d.bReset, d.bVerify, d.bHint].forEach(function (b) {
-      b.classList.remove('btn-primary');
+      if (b) b.classList.remove('btn-primary');
     });
 
     var primaries = [];
@@ -3248,6 +3440,7 @@ var CppLab = (typeof window !== 'undefined')
     } else if (ui.type === 'bughunt' && ui.bugFixed && canVerify) {
       primaries = [d.bVerify];
     }
+    primaries = primaries.filter(function (b) { return !!b; });
     // 反馈卡里的主按钮也算同屏高亮：反馈区有主按钮时最多再留 1 个
     var fbPrimary = document.querySelector('#feedback-area .btn-primary');
     var budget = fbPrimary ? 1 : 2;

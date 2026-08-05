@@ -219,3 +219,27 @@ Result = {status:'ok'|'compile_error'|'runtime_error'|'timeout'|'offline',
 
 - 每个纯逻辑模块配 `js/tests/test-<模块>.js`，零依赖，`node js/tests/test-xx.js` 运行，失败时 `process.exit(1)`，输出 `FAIL: 原因`；成功输出 `PASS (n assertions)`。
 - 简单断言函数自写：`function assert(cond, msg){ if(!cond){ console.error('FAIL:', msg); process.exitCode = 1; } }`。
+
+## §13-2 二轮UI补充（精简与适配）（2026-08-05 追加；不改动原有条款，与 §13/§14 冲突时以原条款红线为准）
+
+### A. UI 精简 —— 当前用不上的东西不出现
+
+1. **底部按钮条按活动动态渲染**（app.js `renderButtonBar`）：
+   - 无 `prediction`（含 predict 型 interaction 回退）的活动不渲染「先预测」；
+   - 无 `program` 的活动不渲染「单步 / 运行」；
+   - 不可验证（非 freeEdit、非 free 模式、且无 `compilerCheck.enabled` 的 program）不渲染「真实C++验证」；
+   - 无提示入口时「求提示」**不渲染而非置灰**。无提示入口 = 活动没配儿童可见提示阶梯（`hintLadder` 为空或只有 teacherOnly 的 H5），或试听诊断闸门关闭（此时提示由教师端代读，红线 §14.7 不变）；
+   - 「重置」始终保留。切换代码模式进入/离开 free 会即时重渲按钮条。
+2. **无 program 的活动**（choice / 无程序 ordering / explain / build / teach-transfer / 无程序 predict）：整个代码台栏（`#code-host`）不渲染，场景+交互区占满中栏；freeEdit 例外（代码台 = 自由编辑区）。
+3. **代码台模式 tabs**：只渲染当前支架可用且本活动可用的模式；只有一种可用模式时不显示 tabs 只显示内容；「🔭 查看完整程序」透视按钮保留（有 program 时）。
+4. **右侧状态透镜**：无 program 时隐藏变量卡+执行时间线+输出屏；提示面板默认折叠成小按钮（`.hint-collapsed`），领到提示内容或孩子点开才展开；无提示入口且未领过提示时提示面板整个不出现；右栏全空时整栏收起（`.lesson-grid.no-lens`，布局重排为两栏不留空栏）。空态文案一律一行以内。
+5. **教师端无会话空态**：孩子端从未开始（无昵称、无证据、无活动状态）时，教师端只在实时区给一句话空态（`renderFreshEmpty`），其余面板留空，不渲染满屏空卡；孩子端一开始会话即自动恢复全部面板。
+
+### B. 全屏 slide 式适配（iPad + 笔记本）
+
+1. **meta**：index.html 使用 `viewport-fit=cover` viewport + `apple-mobile-web-app-capable` / `mobile-web-app-capable` / `apple-mobile-web-app-status-bar-style`；`body { touch-action: manipulation; }` 防双击缩放。
+2. **应用壳**：`#app` 为 `100dvh`（带 `100vh` 回退）flex 纵向壳；`html/body overflow:hidden` —— 页面永不整体滚动、无横向滚动；`.view` 是唯一的纵向滚动容器，宽内容（代码块/表格）只在自身容器内 `overflow-x:auto`。
+3. **断点**：≥1200px 三栏；768–1199px 两栏（场景+交互为主），状态透镜变为右下角浮动「📊 状态」按钮呼出的右侧抽屉（`.state-lens.open`，抽屉内含变量卡/时间线/输出/提示，遮罩或「✕ 收起」关闭）；<768px 单栏上下堆叠。字号用 `clamp()` 随视口缩放但儿童端正文不低于 17px（§13 红线不破）；触控目标 ≥44px（`pointer:coarse` 下 btn-sm/code-tab 等提升到 44px）。
+4. **全屏**：顶栏「⛶ 全屏」按钮，`requestFullscreen` + `webkitRequestFullscreen` 回退；都不支持（旧 iPad Safari）时 toast 提示「用 Safari 分享→添加到主屏幕，可获得全屏体验」。
+5. **可视化**：`#viz-host svg { max-width:100%; max-height:100%; }` 等比缩放不溢出。
+6. **教师端**：仅基础响应式（≤760px 卡片堆叠、宽表格容器内横滚、页面可滚），不做 slide 化。

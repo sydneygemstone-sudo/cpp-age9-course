@@ -33,24 +33,36 @@
 }
 
 /* ------------------------------------------------------------ base reset -- */
+/* §13-2 全屏 slide 式外壳：页面永不整体滚动，只有 .view 与面板内部滚 */
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 body {
   font-family: var(--font);
-  font-size: 17px;               /* 儿童端正文最小字号（CONTRACT §13） */
+  /* 字号随视口缩放，但不低于儿童端正文最小 17px（CONTRACT §13） */
+  font-size: clamp(17px, 1vw + 12px, 19px);
   line-height: 1.6;
   color: var(--c-ink);
   background: var(--c-bg);
   -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;    /* 防 iPad 双击缩放（§13-2） */
+}
+#app {
+  height: 100vh;
+  height: 100dvh;                /* dvh 带 vh 回退（§13-2） */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 h1, h2, h3, h4 { margin: 0 0 .4em; line-height: 1.3; }
-h1 { font-size: 28px; }
-h2 { font-size: 23px; }
-h3 { font-size: 19px; }
+h1 { font-size: clamp(24px, 2vw + 14px, 30px); }
+h2 { font-size: clamp(20px, 1.4vw + 12px, 24px); }
+h3 { font-size: clamp(18px, .8vw + 14px, 20px); }
 p { margin: 0 0 .7em; }
 a { color: var(--c-primary); }
 button { font-family: inherit; }
 img, svg { max-width: 100%; }
+/* Visualizer SVG 场景等比缩放不溢出（§13-2） */
+#viz-host svg { max-width: 100%; max-height: 100%; }
 
 /* 动画开关：body.no-anim 时一切动画瞬时完成 */
 body.no-anim *, body.no-anim *::before, body.no-anim *::after {
@@ -93,6 +105,7 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
 }
 .top-actions { display: flex; align-items: center; gap: 8px; }
 .toggle-btn {
+  white-space: nowrap;           /* 窄屏下不许把「动画：开」拆成竖排 */
   border: 2px solid var(--c-line);
   background: var(--c-card);
   color: var(--c-ink);
@@ -121,8 +134,20 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
 }
 
 /* ----------------------------------------------------------------- view -- */
-.view { max-width: 1280px; margin: 0 auto; padding: 20px 18px 40px; }
-.view-narrow { max-width: 760px; }
+/* .view 是唯一的整页滚动容器（内容用左右 padding 居中，滚动条贴窗口边缘） */
+.view {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px max(18px, calc((100% - 1280px) / 2)) 40px;
+}
+.view-narrow {
+  padding-left: max(18px, calc((100% - 760px) / 2));
+  padding-right: max(18px, calc((100% - 760px) / 2));
+}
 
 /* ---------------------------------------------------------------- cards -- */
 .card {
@@ -270,6 +295,28 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
   grid-template-columns: minmax(250px, 320px) minmax(0, 1fr) minmax(260px, 330px);
   gap: 14px;
   align-items: start;
+}
+/* §13-2：右栏（状态透镜）全空时整栏收起，场景+交互占满 */
+.lesson-grid.no-lens { grid-template-columns: minmax(250px, 360px) minmax(0, 1fr); }
+.lesson-grid.no-lens .state-lens { display: none; }
+
+/* 抽屉呼出按钮 / 收起按钮 / 遮罩：≥1200px 一律隐藏 */
+.lens-fab {
+  display: none;
+  position: fixed;
+  right: 16px;
+  bottom: 92px;
+  z-index: 75;
+  border-radius: 999px;
+  box-shadow: var(--shadow-lift);
+}
+.lens-close { display: none; }
+.lens-mask {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 41, 59, .35);
+  z-index: 80;
 }
 .panel {
   background: var(--c-card);
@@ -600,6 +647,27 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
 }
 .output-empty { color: #475569; font-family: var(--font); font-size: 15px; }
 
+/* 提示面板：默认折叠成小按钮，有内容才展开（§13-2） */
+.hint-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--c-muted);
+  letter-spacing: .05em;
+  min-height: 32px;
+}
+.hint-toggle:hover { color: var(--c-primary); }
+.panel.hint-collapsed { padding: 6px 12px; }
+.panel.hint-collapsed .hint-toggle { margin-bottom: 0; }
+.panel.hint-collapsed .hint-list { display: none; }
+
 .hint-list { display: flex; flex-direction: column; gap: 8px; }
 .hint-item {
   background: var(--c-accent-soft);
@@ -710,6 +778,7 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
   max-width: 720px;
   width: 100%;
   max-height: 85vh;
+  max-height: 85dvh;
   overflow: auto;
   padding: 18px 20px;
 }
@@ -737,8 +806,49 @@ body[data-theme="pet"] .brand .brand-dot { background: linear-gradient(135deg, #
 body[data-theme="adventure"] .brand .brand-dot { background: linear-gradient(135deg, #f59e0b, #ef4444); }
 
 /* ------------------------------------------------------------ 响应式 ----- */
-@media (max-width: 1080px) {
-  .lesson-grid { grid-template-columns: 1fr; }
+/* §13-2 断点：≥1200 三栏 / 768–1199 两栏+状态抽屉 / <768 单栏上下堆叠 */
+@media (max-width: 1199px) {
+  .lesson-grid { grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); }
+  .lesson-grid.no-lens { grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); }
+
+  /* 右栏变成右侧滑出抽屉（含变量卡/时间线/输出/提示） */
+  .state-lens {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(360px, 92vw);
+    z-index: 85;
+    background: var(--c-bg);
+    padding: 14px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transform: translateX(105%);
+    transition: transform .25s ease;
+    box-shadow: -8px 0 24px rgba(30, 41, 59, .18);
+  }
+  .lesson-grid.no-lens .state-lens { display: block; } /* fixed 定位不占栏位，交给 JS 隐藏 fab */
+  .state-lens.open { transform: none; }
+  .state-lens .lens-close { display: inline-flex; margin-bottom: 10px; }
+  .lens-fab { display: inline-flex; }
+  .lens-mask.show { display: block; }
+}
+@media (max-width: 767px) {
+  .lesson-grid { grid-template-columns: 1fr; }        /* 单栏：场景在上、交互在下 */
+  .lesson-grid.no-lens { grid-template-columns: 1fr; }
   .theme-grid { grid-template-columns: 1fr; }
   .btn { font-size: 16px; padding: 8px 14px; }
+  #viz-host { min-height: 180px; }
+  .topbar { padding: 8px 10px; gap: 8px; }
+  .topbar .brand { font-size: 16px; padding: 4px 6px; }
+  .top-actions { gap: 6px; }
+  .toggle-btn { font-size: 13px; padding: 5px 10px; }
+}
+
+/* 触控目标 ≥44px（§13-2；.btn/.chip 本身已 ≥46px） */
+@media (pointer: coarse) {
+  .btn-sm { min-height: 44px; }
+  .code-tab { min-height: 44px; }
+  .toggle-btn { min-height: 44px; }
+  .hint-toggle { min-height: 44px; }
 }
