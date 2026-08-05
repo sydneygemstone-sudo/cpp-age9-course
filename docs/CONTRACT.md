@@ -113,7 +113,7 @@ Variant = {
 - `predict`: `{question, inputType:'number'|'choice', options?, correct}`
 - `trace`: `{checkpoints:[{afterStep:Number, question, inputType, options?, correct}]}`（需 program）
 - `slots`: `{goal:{type:'finalVar', name, value} | {type:'stdout', value}, slots:[{stepIndex, path:'expr'|'expr.right'|'cond.right'等, label, inputType:'number'|'choice', choices?}]}`（需 program）
-- `freeEdit`: `{starterCode:String, goal:String, consoleMode:true}`（自由文本 C++，不逐行可视化，UI 显示"控制台模式"）
+- `freeEdit`: `{starterCode:String, goal:String, consoleMode:true, expectedStdout?:String}`（自由文本 C++，不逐行可视化，UI 显示"控制台模式"；`expectedStdout` 由内容侧提供，UI 侧完成判定用，见 §13-2 C）
 - `bughunt`: `{bug:{stepIndex, wrongPiece, rightPiece, whyChild:'中文解释'}}`（需 program，program 里放的是**带 bug 版**）
 - `teach-transfer`: `{teach:{title, script:[{say,show?}]}, transfer:{question, inputType, options?, correct}}`
 - `explain`: `{prompt, sentenceStarters:[..], minWords?:0}`（口头/打字皆可，老师记录）
@@ -227,7 +227,7 @@ Result = {status:'ok'|'compile_error'|'runtime_error'|'timeout'|'offline',
 1. **底部按钮条按活动动态渲染**（app.js `renderButtonBar`）：
    - 无 `prediction`（含 predict 型 interaction 回退）的活动不渲染「先预测」；
    - 无 `program` 的活动不渲染「单步 / 运行」；
-   - 不可验证（非 freeEdit、非 free 模式、且无 `compilerCheck.enabled` 的 program）不渲染「真实C++验证」；
+   - 「真实C++验证」的渲染条件（三者满足其一即渲染，其余情况不渲染）：activityType 为 freeEdit；或当前处于 free 代码模式（free 模式例外——即使活动本身没有 `compilerCheck.enabled` 也渲染）；或活动有 program 且 `compilerCheck.enabled`；
    - 无提示入口时「求提示」**不渲染而非置灰**。无提示入口 = 活动没配儿童可见提示阶梯（`hintLadder` 为空或只有 teacherOnly 的 H5），或试听诊断闸门关闭（此时提示由教师端代读，红线 §14.7 不变）；
    - 「重置」始终保留。切换代码模式进入/离开 free 会即时重渲按钮条。
 2. **无 program 的活动**（choice / 无程序 ordering / explain / build / teach-transfer / 无程序 predict）：整个代码台栏（`#code-host`）不渲染，场景+交互区占满中栏；freeEdit 例外（代码台 = 自由编辑区）。
@@ -239,7 +239,13 @@ Result = {status:'ok'|'compile_error'|'runtime_error'|'timeout'|'offline',
 
 1. **meta**：index.html 使用 `viewport-fit=cover` viewport + `apple-mobile-web-app-capable` / `mobile-web-app-capable` / `apple-mobile-web-app-status-bar-style`；`body { touch-action: manipulation; }` 防双击缩放。
 2. **应用壳**：`#app` 为 `100dvh`（带 `100vh` 回退）flex 纵向壳；`html/body overflow:hidden` —— 页面永不整体滚动、无横向滚动；`.view` 是唯一的纵向滚动容器，宽内容（代码块/表格）只在自身容器内 `overflow-x:auto`。
-3. **断点**：≥1200px 三栏；768–1199px 两栏（场景+交互为主），状态透镜变为右下角浮动「📊 状态」按钮呼出的右侧抽屉（`.state-lens.open`，抽屉内含变量卡/时间线/输出/提示，遮罩或「✕ 收起」关闭）；<768px 单栏上下堆叠。字号用 `clamp()` 随视口缩放但儿童端正文不低于 17px（§13 红线不破）；触控目标 ≥44px（`pointer:coarse` 下 btn-sm/code-tab 等提升到 44px）。
+3. **断点**：≥1200px 三栏；768–1199px 两栏（场景+交互为主），状态透镜变为右下角浮动「📊 状态」按钮呼出的右侧抽屉（`.state-lens.open`，抽屉内含变量卡/时间线/输出/提示，遮罩或「✕ 收起」关闭）；<768px 前两栏（场景+交互）堆叠为单列 1fr，状态透镜**维持抽屉形态不做整页单栏堆叠改造**（2026-08-05 裁定：目标设备为 iPad/笔记本，<768 仅为兜底）。字号用 `clamp()` 随视口缩放但儿童端正文不低于 17px（§13 红线不破）；触控目标 ≥44px（`pointer:coarse` 下 btn-sm/code-tab/顶栏回首页 `.brand`/抓虫可点代码行 `.code-line.clickable` 等直接绑 click 的元素统一提升到 44px）。状态 FAB（`.lens-fab`）按底部按钮条实际高度定位：app.js 用 ResizeObserver 把按钮条高度写入 CSS 变量 `--btnbar-h`，FAB `bottom = calc(var(--btnbar-h) + 12px)`；顶栏/`.view`/`.btnbar-wrap`/`.lens-fab`/抽屉均补 `env(safe-area-inset-*)` 回退间距（配合 `viewport-fit=cover` 与添加到主屏幕场景）。
 4. **全屏**：顶栏「⛶ 全屏」按钮，`requestFullscreen` + `webkitRequestFullscreen` 回退；都不支持（旧 iPad Safari）时 toast 提示「用 Safari 分享→添加到主屏幕，可获得全屏体验」。
 5. **可视化**：`#viz-host svg { max-width:100%; max-height:100%; }` 等比缩放不溢出。
-6. **教师端**：仅基础响应式（≤760px 卡片堆叠、宽表格容器内横滚、页面可滚），不做 slide 化。
+6. **教师端**：仅基础响应式（≤760px 卡片堆叠、宽表格容器内横滚、页面可滚），不做 slide 化；PIN 卡宽度 `min(340px, calc(100vw - 24px))` 防窄屏溢出。
+
+### C. freeEdit 完成判定与离线通道（2026-08-05 跨文件约定，内容侧与 UI 侧共同遵守）
+
+1. **完成判定**：freeEdit 的 `interaction` 可带 `expectedStdout:String`（内容侧提供）。UI 侧完成规则——变体带 `prediction` 时必须已提交预测（未提交时「真实C++验证」引导先预测，不发起编译）；真实编译 `real:true && status:'ok'`；配置了 `expectedStdout` 时还需 `stdout.trim() === expectedStdout`，三者齐备才 `completeCurrent`。输出不匹配只展示真实输出并提示再试，绝不自动过关（堵死"不改代码直接验证也能过关"）。
+2. **离线通道**：远程编译不可用（`real:false`）时，freeEdit 在「概念演示」卡内显示「📴 现在没网，真实编译用不了。请老师看过你的代码后确认」与「老师确认完成」按钮；点击后 `completeCurrent`，证据 `childAction` 记「离线-教师人工确认」（outcome 记 `N`，由教师在证据流补记完成度）；作品/结果绝不打真实验证标记（红线 §14.1 不变）。
+3. **两段式 predict**：predict 型活动同时带 `variants.*.prediction`（热身）与 `interaction.question`（主提问）时，预测+运行完成后由 UI 弹出主提问作答，完成判定看主提问而非热身。例外：内容把同一道题同时写进两处（问题与答案完全相同，如 lesson2-06）视为单段式，不重复提问。bughunt / teach-transfer / slots 带 `prediction` 时，运行结束一律走各自类型的完成判定，预测仅作热身，不得短路 `completeCurrent`。

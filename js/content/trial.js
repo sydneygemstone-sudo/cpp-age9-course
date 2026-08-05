@@ -9,6 +9,8 @@
  *   （所有变体的 program 刻意设计为同一 stdout，便于活动级校验）。
  *   bughunt 例外：program 存带 bug 版，而 expectedStdout 是修好 bug 后的输出——
  *   与产品「真实C++验证」时机一致（app.js 对修好版源码编译比对）。
+ *   slots 例外（trial-08-S）：program 存非解预填版，expectedStdout 是达成
+ *   goal 后的输出——同样对齐产品验证时机（比对孩子当前 workProgram）。
  * - 扩展字段（引擎侧按需消费，见集成说明）:
  *   coreDiagnostic  — 是否属于"核心诊断活动"（CONTRACT §10 提示闸门用）
  *   aiHabit         — 标记第 10 活动为 AI 协作习惯观察（存 session.lessons.trial.aiHabit）
@@ -42,14 +44,14 @@ CppLab.content.trial = {
       title: '降落！选择你的救援搭档',
       concept: '进入任务世界与兴趣捕捉',
       learningObjective: '建立任务情境；自然捕捉孩子的兴趣类别、既往经验与电脑熟悉度。',
-      childPrompt: '飞船降落啦！先选一个救援搭档，再告诉它：你最想接哪种任务？',
+      childPrompt: '飞船降落啦！你的救援搭档已经就位——告诉它：你最想接哪种任务？',
       dimensions: ['D12', 'D10'],
       activityType: 'choice',
       visualModel: 'scene',
       coreDiagnostic: false,
       variants: {
         E: {
-          intro: '欢迎来到救援星球！屏幕上有三个搭档：蓝色圆滚机器人、橙色方块机器人、绿色太空小狗。用鼠标点一点，选一个你最喜欢的吧。选好后再点一张"任务卡"，告诉搭档你最想玩哪种任务。',
+          intro: '欢迎来到救援星球！你刚才选好的搭档已经站在你身边啦。看，屏幕上摆着七张"任务卡"——用鼠标点一张你最喜欢的，告诉搭档你最想玩哪种任务。',
           program: null,
           interaction: {
             question: '你最想接哪种救援任务？（点一张任务卡）',
@@ -65,10 +67,10 @@ CppLab.content.trial = {
             multi: false
           },
           prediction: null,
-          successCriteria: '孩子能自己（或在老师帮助下）用鼠标完成两次点选，并说出为什么选这张任务卡。'
+          successCriteria: '孩子能自己（或在老师帮助下）用鼠标点选一张任务卡，并说出为什么选这张任务卡。'
         },
         S: {
-          intro: '欢迎登陆！先选一个救援搭档（蓝色圆滚 / 橙色方块 / 绿色小狗），再挑一张你最想接的任务卡。挑完用一句话告诉搭档：为什么是这一张？顺便聊聊——你以前做过最满意的作品是什么？',
+          intro: '欢迎登陆！你的救援搭档已经就位，正等你派任务呢。从屏幕上的任务卡里挑一张你最想接的，挑完用一句话告诉搭档：为什么是这一张？顺便聊聊——你以前做过最满意的作品是什么？',
           program: null,
           interaction: {
             question: '你最想接哪种救援任务？选好后说说理由。',
@@ -87,7 +89,7 @@ CppLab.content.trial = {
           successCriteria: '孩子独立完成选择，能用完整的一句话说明理由，并回答一个"以前做过什么"的问题。'
         },
         A: {
-          intro: '欢迎登陆，指挥官！选好你的救援搭档和任务卡后，给搭档介绍一下：你以前做过最得意的程序或作品是什么？它会做什么？是你自己从头做的，还是别人搭好框架你来改的？',
+          intro: '欢迎登陆，指挥官！你的救援搭档已经就位。先从屏幕上的任务卡里选一张，然后给搭档介绍一下：你以前做过最得意的程序或作品是什么？它会做什么？是你自己从头做的，还是别人搭好框架你来改的？',
           program: null,
           interaction: {
             question: '你最想接哪种救援任务？选完介绍一个你以前的作品。',
@@ -107,8 +109,8 @@ CppLab.content.trial = {
         }
       },
       hintLadder: [
-        { level: 'H1', text: '现在要做两件事：先选一个搭档，再选一张任务卡。你想先从哪个开始？' },
-        { level: 'H2', text: '看看屏幕上的三个搭档，用鼠标移过去它们会亮起来，点一下就选中了。' },
+        { level: 'H1', text: '现在只做一件事：从屏幕上的任务卡里选一张你最喜欢的。哪张卡让你最心动？' },
+        { level: 'H2', text: '看看屏幕上的任务卡，用鼠标移到卡片上，点一下就选中了。' },
         { level: 'H3', text: '不用担心选错——任务卡没有对错，只是告诉搭档你喜欢什么。' },
         { level: 'H4', text: '比如有的小朋友喜欢"找错解谜"，因为像当侦探；那你更像哪一种呢？' },
         { level: 'H5', text: '老师示范：我来点给你看——移动鼠标、点一下，选中了！现在换你来选任务卡。', teacherOnly: true }
@@ -773,7 +775,7 @@ CppLab.content.trial = {
         note: '迁移表现同时记 D9（最重要的路径指标之一）：现场教完充电机后，孩子解护盾机器需要哪档支持（独立/一次概念提示/逐步示范），填 transfer_result。A 档另观察能否用第二条记录排除假规则（假设检验意识）。'
       },
       teacherCards: {
-        truth: '函数机器是函数概念的具象版：输入=参数，处理=函数体，输出=返回值。演示程序 power=2; power=power+3; 输出 5，就是充电机的代码化身。诊断关键不是孩子会不会加法，而是模式能否迁移：换一台规则不同的机器，"输入→处理→输出"的框架还在不在。',
+        truth: '函数机器是函数概念的具象版：输入=参数，处理=函数体，输出=返回值。演示程序 power=2; power=power+3; 输出 5，只是"输入—处理—输出"规则机器的代码预览——它没有参数、也没有 return，还不是真正的 C++ 函数（第 5 课才学）；末尾的 std::cout 是把结果打印到屏幕上，不是函数的返回值。诊断关键不是孩子会不会加法，而是模式能否迁移：换一台规则不同的机器，"输入→处理→输出"的框架还在不在。',
         demo: '用一个纸盒当机器：写着 +3 的充电机。孩子递进写着 2 的纸条，老师在盒子里换成 5 递出来。玩两轮后换一张 +5 的贴纸盖上去："机器还是这个盒子，规则换了。"然后回屏幕看代码版。',
         questions: [
           '充电机和护盾机器，哪里一模一样？哪里不一样？',
@@ -942,7 +944,11 @@ CppLab.content.trial = {
     /* =========================================================
      * 活动 8 · 51–56 分钟 · 动态挑战（三档交互差异最大化）
      * E=ordering 图块 / S=slots 补代码 / A=freeEdit 调试短 C++
-     * S 档 program stdout "10"
+     * S 档 program 存"非解预填"版（加 3 放 1，直接运行 stdout "8"）；
+     * expectedStdout "10" 是孩子改对槽位、达成目标后的输出——与产品
+     * 「真实C++验证」时机一致（app.js 比对孩子当前 workProgram）。
+     * A 档 freeEdit 的 interaction.expectedStdout 是 starterCode 修好后
+     * 的真实编译输出（clang++ -std=c++17 实证："启动成功"，任何一行修法同果）。
      * ========================================================= */
     {
       id: 'trial-08-dynamic-challenge',
@@ -980,13 +986,13 @@ CppLab.content.trial = {
           successCriteria: '孩子尽量不靠提示排出安全顺序（点火必须最后；舱门在起飞前关好），并说出一条"为什么"。'
         },
         S: {
-          intro: '飞船引擎需要正好 10 格能量才能起飞！现在能量是 6 格。代码里有两个空槽：一个加能量、一个放掉多余的能量。把两个空槽填上合适的数字，让最后的能量正好等于 10。先心算验证，再运行！',
+          intro: '飞船引擎需要正好 10 格能量才能起飞！现在能量是 6 格。代码里有两个数字槽：一个加能量、一个放掉多余的能量。槽里预先填着上一位驾驶员的试验数字"加 3、放 1"——照这样跑能量只到 8，起飞不了！把两个槽改成合适的数字，让最后的能量正好等于 10。先心算验证，再运行！',
           program: [
             { op: 'declare', varType: 'int', name: 'energy', expr: { kind: 'lit', value: 6 } },
             { op: 'assign', name: 'energy',
-              expr: { kind: 'bin', op: '+', left: { kind: 'var', name: 'energy' }, right: { kind: 'lit', value: 6 } } },
+              expr: { kind: 'bin', op: '+', left: { kind: 'var', name: 'energy' }, right: { kind: 'lit', value: 3 } } },
             { op: 'assign', name: 'energy',
-              expr: { kind: 'bin', op: '-', left: { kind: 'var', name: 'energy' }, right: { kind: 'lit', value: 2 } } },
+              expr: { kind: 'bin', op: '-', left: { kind: 'var', name: 'energy' }, right: { kind: 'lit', value: 1 } } },
             { op: 'output', expr: { kind: 'var', name: 'energy' } }
           ],
           interaction: {
@@ -1010,7 +1016,8 @@ CppLab.content.trial = {
           interaction: {
             starterCode: '#include <iostream>\n\nint main() {\n    int energy = 8;\n    energy = energy - 3;\n    if (energy > 5) {\n        std::cout << "启动成功";\n    } else {\n        std::cout << "能量不足";\n    }\n    return 0;\n}\n',
             goal: '只改动一行，让程序打印出"启动成功"。改之前先说出：现在 energy 走到 if 那一行时是几？为什么走进了 else？',
-            consoleMode: true
+            consoleMode: true,
+            expectedStdout: '启动成功'
           },
           prediction: {
             question: '先诊断：程序走到 if 那一行时，energy 的值是几？',
@@ -1040,7 +1047,7 @@ CppLab.content.trial = {
           '如果再来一次，你会用不同的做法吗？'
         ],
         misconceptions: [
-          '（S 档）认为两个空槽只有唯一答案，不敢填自己算的组合——其实等式成立即可。',
+          '（S 档）认为两个数字槽只有唯一正解，不敢填自己算的组合——其实等式成立即可（预填的"加 3 放 1"只是错误示范，不是提示）。',
           '（A 档）不追踪值就乱改代码碰运气（改一处运行一次连蒙带猜）。',
           '认为求助等于失败——要说明"选对提示"也是本领（记 D11）。'
         ],

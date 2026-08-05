@@ -821,16 +821,17 @@ var CppLab = (typeof window !== 'undefined')
             successCriteria: '孩子先做出预测再提交编译，并能指着返回的 OPEN 说"这就是舱门打开的意思"。'
           },
           S: {
-            intro: '真实验证时间！预测输出并编译。跑完这一次，再和老师一起把能量改成 4 编译第二次——两条路都要亲眼见过真实输出。',
+            intro: '真实验证时间，两步走！第一步：能量槽里现在是 5，先预测输出，再按"真实C++验证"，亲眼看真编译器打出 OPEN。第二步：把能量槽改成 4，再真实编译一次——看真编译器改口说 CHARGE。两条路都要亲眼见过真实输出才算完。',
             program: coreProgram(),
+            // 与 predict 档不同：S 档改用槽位实操（activityTypeOverride），孩子亲手改
+            // 能量值走两条分支；expectedStdout 仍是未改动程序（energy=5）的 "OPEN"，
+            // 槽位目标达成与否由 UI 比对当前程序 IR stdout（goal: CHARGE）。
+            activityTypeOverride: 'slots',
             interaction: {
-              question: 'energy 是 5，真实编译运行后屏幕会打出什么？',
-              inputType: 'choice',
-              options: [
-                { id: 'open', label: 'OPEN——条件为真，走 if 块' },
-                { id: 'charge', label: 'CHARGE——条件为假，走 else 块' }
-              ],
-              correct: 'open'
+              goal: { type: 'stdout', value: 'CHARGE' },
+              slots: [
+                { stepIndex: 0, path: 'expr', label: '能量', inputType: 'number' }
+              ]
             },
             prediction: {
               question: 'energy 是 5，真实编译运行后屏幕会打出什么？',
@@ -841,7 +842,7 @@ var CppLab = (typeof window !== 'undefined')
               ],
               correct: 'open'
             },
-            successCriteria: '预测正确并完成真实编译；第二组测试（能量改 4）后能说出"真实输出换成了 CHARGE，和岔路口的规则一致"。'
+            successCriteria: '先用能量 5 完成一次真实编译、亲眼看到 OPEN；再把能量槽改成 4（或任何小于 5 的数）达成 CHARGE 目标并再次真实编译，能说出"真实输出跟着岔路口换了条路"。'
           },
           A: {
             intro: '加速挑战：这段代码有两个条件用 && 连着——能量够、钥匙在，两个都真门才开。预测真实编译的输出，特别注意 energy 正好踩在边界 5 上。',

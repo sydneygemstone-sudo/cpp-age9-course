@@ -40,7 +40,7 @@ button { font-family: inherit; }
 .pin-box {
   background: var(--c-card); border-radius: var(--radius);
   box-shadow: 0 8px 30px rgba(30,41,59,.12);
-  padding: 32px 36px; width: 340px; text-align: center;
+  padding: 32px 36px; width: min(340px, calc(100vw - 24px)); text-align: center;
 }
 .pin-box h1 { font-size: 19px; margin: 0 0 6px; }
 .pin-box p { color: var(--c-muted); font-size: 13px; margin: 0 0 18px; }

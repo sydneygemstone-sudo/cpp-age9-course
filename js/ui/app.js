@@ -775,6 +775,9 @@ var CppLab = (typeof window !== 'undefined')
 
     S.root.appendChild(view);
 
+    // 状态 FAB 按按钮条实际高度定位（codex-UI P1-5）：把高度写进 CSS 变量 --btnbar-h
+    observeBtnbarHeight(barWrap);
+
     S.dom = {
       center: center, goal: goal, vizHost: vizHost,
       grid: grid, rightCol: right,
@@ -795,6 +798,29 @@ var CppLab = (typeof window !== 'undefined')
     var d = S.dom;
     if (d.rightCol) d.rightCol.classList.remove('open');
     if (d.lensMask) d.lensMask.classList.remove('show');
+  }
+
+  /**
+   * 按钮条高度 → CSS 变量 --btnbar-h（codex-UI P1-5）：
+   * .lens-fab 的 bottom 用 calc(var(--btnbar-h) + 12px) 定位，按钮换行/字号变化时
+   * ResizeObserver 实时跟随；不支持 ResizeObserver 的环境退回一次性测量 + CSS 默认值。
+   */
+  var btnbarRO = null;
+  function observeBtnbarHeight(barWrap) {
+    if (btnbarRO) {
+      try { btnbarRO.disconnect(); } catch (e) { /* 忽略 */ }
+      btnbarRO = null;
+    }
+    function apply() {
+      if (!document.body.contains(barWrap)) return;
+      var hgt = barWrap.offsetHeight || 0;
+      if (hgt > 0) document.documentElement.style.setProperty('--btnbar-h', hgt + 'px');
+    }
+    if (typeof ResizeObserver === 'function') {
+      btnbarRO = new ResizeObserver(apply);
+      btnbarRO.observe(barWrap);
+    }
+    apply();
   }
 
   /* ======================================================================
@@ -1039,10 +1065,15 @@ var CppLab = (typeof window !== 'undefined')
     }
     var model = activity.visualModel || 'none';
     var s = session();
+    // 无 program 的活动（含 freeEdit 控制台模式）：场景里的变量盒/输出屏没有数据来源，
+    // 传 noProgram 让 Visualizer 不渲染这两块（建造遗留9）。
+    var hasProg = !!(variant && Array.isArray(variant.program) && variant.program.length) &&
+      S.ui.type !== 'freeEdit';
     try {
       S.viz = CppLab.Visualizer.mount(S.dom.vizHost, model, {
         skin: s.robotSkin || 'robo-blue',
         energy: findInitialEnergy(variant && variant.program),
+        noProgram: !hasProg,
         onHighlightLine: function (lineNo) { setCurrentLine(lineNo); }
       });
     } catch (e) {
@@ -1084,7 +1115,10 @@ var CppLab = (typeof window !== 'undefined')
       if (v === false) card.classList.add('vc-false');
       var nm = el('div', 'vc-name', name);
       var zh = GLOSSARY[name];
-      nm.title = zh ? (name + ' = ' + zh) : (name + '：一个装数据的盒子');
+      var nmTip = zh ? (name + ' = ' + zh) : (name + '：一个装数据的盒子');
+      nm.title = nmTip;
+      // 触屏没有悬停：点按变量名弹小气泡（建造遗留8）
+      nm.addEventListener('click', function () { toast(nmTip); });
       card.appendChild(nm);
       var valText = (v === true) ? '真 ✓' : (v === false) ? '假 ✗' : String(v);
       var val = el('div', 'vc-val flash', valText);
@@ -1283,17 +1317,8 @@ var CppLab = (typeof window !== 'undefined')
     }
 
     var type = ui.type;
-    // ordering 例外：预测只是热身，完成判定始终走「检查顺序」，运行是可反复的探索
-    if (type === 'predict' ||
-        (effPrediction() && (type === 'trace' || (ui.variant.prediction && type !== 'ordering')))) {
-      // 有预测：运行完先对答案
-      if (type === 'trace') {
-        maybeFinishTrace();
-        return;
-      }
-      finishPredictActivity();
-      return;
-    }
+    // 类型分流先于预测收尾：bughunt / teach-transfer / slots 等有自己的完成判定，
+    // 即使带 variant.prediction（热身），运行结束也绝不走 finishPredictActivity 短路完成。
     if (type === 'trace') { maybeFinishTrace(); return; }
     if (type === 'slots') { checkSlotsGoal(); return; }
     if (type === 'bughunt') {
@@ -1301,6 +1326,24 @@ var CppLab = (typeof window !== 'undefined')
         showFeedback('warn', '看出问题了吗？', '程序跑完了，但结果好像不太对劲。点一点代码里可疑的那一行！', []);
       }
       refreshButtons();
+      return;
+    }
+    if (type === 'teach-transfer') {
+      // 运行只是演示；完成判定在迁移题（renderTransferQuestion）里
+      toast('演示跑完啦！回到上面跟着小老师继续，最后还有挑战题等你～');
+      refreshButtons();
+      return;
+    }
+    if (type === 'predict') {
+      // 两段式：同时带 variant.prediction（热身）与 interaction.question（主题）时，
+      // 预测+运行完成后弹出主提问，完成判定看主题而非热身。
+      if (hasTwoStageQuestion()) { renderMainQuestion(); refreshButtons(); return; }
+      finishPredictActivity();
+      return;
+    }
+    // ordering 例外：预测只是热身，完成判定始终走「检查顺序」，运行是可反复的探索
+    if (effPrediction() && ui.variant.prediction && type !== 'ordering') {
+      finishPredictActivity();
       return;
     }
     // 其他带程序的活动：跑完即算探索完成
@@ -1401,6 +1444,96 @@ var CppLab = (typeof window !== 'undefined')
     }
     panel.appendChild(row);
     return panel;
+  }
+
+  /**
+   * 两段式 predict：变体同时带 prediction（热身）与 interaction.question（主提问）。
+   * 例外：内容把同一道题同时写进两处（如 lesson2-06，问题与答案完全相同）＝单段式，
+   * 不在运行后重复提问。
+   */
+  function hasTwoStageQuestion() {
+    var ui = S.ui;
+    if (!(ui && ui.type === 'predict' && ui.variant &&
+          ui.variant.prediction && ui.variant.interaction && ui.variant.interaction.question)) {
+      return false;
+    }
+    var p = ui.variant.prediction;
+    var q = ui.variant.interaction;
+    if (String(p.question) === String(q.question) && valEq(p.correct, q.correct)) return false;
+    return true;
+  }
+
+  /** 两段式主提问：运行结束后弹出，完成判定看主题（interaction.question）而非热身。 */
+  function renderMainQuestion() {
+    var ui = S.ui;
+    if (!ui || ui.completed) return;
+    var inter = ui.variant.interaction;
+    var host = document.getElementById('interaction-area');
+    if (!host) return;
+    var old = document.getElementById('main-question');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    var box = el('div', 'predict-panel');
+    box.id = 'main-question';
+    box.style.marginTop = '12px';
+    if (ui.predictedCorrect === true) {
+      box.appendChild(el('p', 'predict-done', '热身预测答对啦！现在来真正的问题：'));
+    } else if (ui.predictedCorrect === false) {
+      box.appendChild(el('p', 'predict-done', '热身题差一点点，没关系！现在来真正的问题：'));
+    }
+    box.appendChild(el('div', 'pp-q', '⭐ 主问题：' + (inter.question || '')));
+    var row = el('div', 'predict-row');
+
+    function submit(value) {
+      if (ui.completed) return;
+      ui.interactionAttempts += 1;
+      if (valEq(value, inter.correct)) {
+        disableChips(row);
+        completeCurrent({
+          outcome: outcomeFromAttempts(ui.interactionAttempts),
+          selfCorrection: ui.interactionAttempts > 1,
+          answerOrCode: String(value),
+          childAction: '两段式主提问，第 ' + ui.interactionAttempts + ' 次答对（热身预测' +
+            (ui.predictedCorrect ? '正确' : '未命中') + '）'
+        });
+      } else if (ui.interactionAttempts >= 3) {
+        showFeedback('warn', '这个问题有点狡猾！', '你已经很努力啦。看着左边的画面和时间线，和老师一起再想想？', [
+          { label: '知道了，继续', primary: true, onClick: function () {
+              completeCurrent({
+                outcome: 1,
+                answerOrCode: String(value),
+                childAction: '两段式主提问多次未命中，观察运行结果后继续'
+              });
+            } }
+        ]);
+      } else {
+        showFeedback('warn', pick(ENCOURAGES), '再看看刚才程序跑的每一步，然后再试一次！', []);
+      }
+    }
+
+    if (inter.inputType === 'choice' && Array.isArray(inter.options)) {
+      inter.options.forEach(function (opt) {
+        var label = (opt && typeof opt === 'object') ? (opt.label !== undefined ? opt.label : opt.id) : opt;
+        var value = (opt && typeof opt === 'object') ? (opt.id !== undefined ? opt.id : opt.label) : opt;
+        var c = el('button', 'chip', String(label));
+        c.type = 'button';
+        c.addEventListener('click', function () { submit(value); });
+        row.appendChild(c);
+      });
+    } else {
+      var input = el('input', 'predict-input');
+      input.type = 'number';
+      var ok = btn('就是它！', 'btn btn-sm btn-accent', function () {
+        if (input.value === '') { input.focus(); return; }
+        submit(input.value);
+      });
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') ok.click(); });
+      row.appendChild(input);
+      row.appendChild(ok);
+    }
+    box.appendChild(row);
+    host.appendChild(box);
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function finishPredictActivity() {
@@ -1867,7 +2000,11 @@ var CppLab = (typeof window !== 'undefined')
       ui.localCursor = 0;
       ui.runFinished = false;
       var valSpan = chip.querySelector('.sc-val');
-      if (valSpan) valSpan.textContent = String(v);
+      // choice 槽位的值可能是 {id,label,...} 对象：展示 label 而不是 [object Object]
+      var shown = (v && typeof v === 'object')
+        ? (v.label !== undefined ? v.label : (v.id !== undefined ? v.id : '已选择'))
+        : v;
+      if (valSpan) valSpan.textContent = String(shown);
       clearNode(hostNode);
       clearRunPanels();
       var codeHost = document.getElementById('code-host');
@@ -2103,6 +2240,19 @@ var CppLab = (typeof window !== 'undefined')
 
   /* ---------------------------- teach-transfer ---------------------------- */
 
+  /**
+   * 教学脚本的舞台指令 → Visualizer 演出（建造遗留5）。
+   * 认识的标签（feed-<入>-out-<出>）驱动函数机器动画；不认识的指令静默忽略，
+   * 绝不把英文原文显示到儿童屏。
+   */
+  function playTeachShow(showLabel) {
+    if (!S.viz) return;
+    var m = /^feed-(-?\d+)-out-(-?\d+)$/.exec(showLabel);
+    if (m && typeof S.viz.demoFeed === 'function') {
+      try { S.viz.demoFeed(m[1], m[2]); } catch (e) { /* 演出失败不阻断教学 */ }
+    }
+  }
+
   function renderTeachTransfer(host, inter) {
     var ui = S.ui;
     var teach = inter.teach || { script: [] };
@@ -2137,10 +2287,9 @@ var CppLab = (typeof window !== 'undefined')
       clearNode(showBox);
       if (st) {
         stepBox.textContent = st.say || '';
-        if (st.show) {
-          var sh = el('div', 'tb-show', String(st.show));
-          showBox.appendChild(sh);
-        }
+        // show 是舞台指令（英文标签），不给孩子看原文：认识的标签映射给 Visualizer 演出，
+        // 不认识的直接不显示（建造遗留5）。
+        if (st.show) playTeachShow(String(st.show));
       } else {
         stepBox.textContent = '（这一段还没有内容）';
       }
@@ -2379,8 +2528,14 @@ var CppLab = (typeof window !== 'undefined')
     var preview = el('div', 'build-preview form-hint');
     preview.style.marginTop = '10px';
     card.appendChild(preview);
+    // 「变成的代码」只读预演区（建造遗留6）：让孩子看到每个选择长成一行 C++
+    var codePreview = el('div', 'build-code-preview');
+    codePreview.style.marginTop = '10px';
+    card.appendChild(codePreview);
     function refreshPreview() {
       clearNode(preview);
+      clearNode(codePreview);
+      updateVerifyState();
       var prog = buildComposeProgram(ui.buildPick);
       if (!prog || !CppLab.IR) return;
       var exec = CppLab.IR.execute(prog);
@@ -2389,6 +2544,21 @@ var CppLab = (typeof window !== 'undefined')
       } else {
         preview.appendChild(document.createTextNode('📖 故事预演：机器人最后的能量是 ' + String(exec.finalVars.energy) + ' 格。'));
       }
+      try {
+        var focus = CppLab.IR.toFocusCpp(prog);
+        codePreview.appendChild(el('div', 'bg-title', '👀 变成的代码：你按的每个按钮都长成了一行 C++'));
+        codePreview.appendChild(buildCodeView(focus.split('\n'), null, {}));
+      } catch (e) { /* 代码预览失败不阻断创作 */ }
+    }
+    /** 「用真实C++验证」在拼出有效程序前禁用（codex-UI P1-1）。 */
+    function updateVerifyState() {
+      if (!verify) return;
+      var ready = !!(buildComposeProgram(ui.buildPick) && CppLab.IR && CppLab.Compiler);
+      verify.disabled = !ready || !!ui.verifyBusy;
+      verify.title = ready
+        ? '把你的作品寄给真正的 C++ 编译器运行一遍'
+        : '先选好出发能量、拼出你的故事，才能请真编译器来验证';
+      if (verifyHint) verifyHint.style.display = ready ? 'none' : '';
     }
 
     var saveRow = el('div');
@@ -2445,7 +2615,8 @@ var CppLab = (typeof window !== 'undefined')
     });
     saveRow.appendChild(save);
 
-    // 真实 C++ 验证：合成程序送真实编译，成功才打「已通过真实 C++ 验证」标记
+    // 真实 C++ 验证：合成程序送真实编译，成功才打「已通过真实 C++ 验证」标记。
+    // 拼出有效程序前保持禁用（codex-UI P1-1），禁用原因见按钮 title 与下方小字。
     var verify = btn('🧪 用真实C++验证我的故事', 'btn', function () {
       var prog = buildComposeProgram(ui.buildPick);
       if (!prog || !CppLab.IR || !CppLab.Compiler) { toast('先把作品拼完整（要选出发能量哦）'); return; }
@@ -2459,8 +2630,8 @@ var CppLab = (typeof window !== 'undefined')
         mode: 'verify',
         program: prog
       }).then(function (res) {
-        verify.disabled = false;
         verify.textContent = '🧪 用真实C++验证我的故事';
+        updateVerifyState();
         if (res && res.real === true && res.status === 'ok' && res.stdout === localOut) {
           saveCard(true);
           showFeedback('ok', '真实C++编译通过！', '作品卡打上了「已通过真实 C++ 验证」的印章！', []);
@@ -2475,6 +2646,9 @@ var CppLab = (typeof window !== 'undefined')
     saveRow.appendChild(verify);
 
     card.appendChild(saveRow);
+    var verifyHint = el('p', 'form-hint', '💡 「真实验证」按钮要等你选好出发能量、拼出作品后才会亮起来。');
+    verifyHint.style.marginTop = '6px';
+    card.appendChild(verifyHint);
     host.appendChild(card);
     refreshPreview();
   }
@@ -2679,7 +2853,10 @@ var CppLab = (typeof window !== 'undefined')
     return 0;
   }
 
-  /** 把一行代码切词，给认识的标识符加中文悬停释义（CONTRACT §13）。 */
+  /**
+   * 把一行代码切词，给认识的标识符加中文释义（CONTRACT §13）：
+   * 桌面悬停 title + 触屏点按弹 toast 小气泡（建造遗留8）。
+   */
   function buildCodeLineContent(lineText) {
     var frag = document.createDocumentFragment();
     var parts = String(lineText).split(/([A-Za-z_][A-Za-z0-9_]*)/);
@@ -2688,6 +2865,11 @@ var CppLab = (typeof window !== 'undefined')
       if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(p) && GLOSSARY[p]) {
         var span = el('span', 'cpp-id', p);
         span.title = p + ' = ' + GLOSSARY[p];
+        span.addEventListener('click', function () {
+          // 抓虫模式下整行可点（选可疑行是主动作），不抢走点击语义
+          if (span.closest && span.closest('.code-line.clickable')) return;
+          toast(p + ' 的意思是「' + GLOSSARY[p] + '」');
+        });
         frag.appendChild(span);
       } else {
         frag.appendChild(document.createTextNode(p));
@@ -2871,6 +3053,12 @@ var CppLab = (typeof window !== 'undefined')
       return;
     }
     if (ui.verifyBusy) return;
+    // freeEdit 完成判定约定：有 prediction 必须先提交预测才允许发起真实验证（P0-1）
+    if (ui.type === 'freeEdit' && effPrediction() && !ui.predicted) {
+      focusPredict();
+      toast('先把上面的预测填好，再请真编译器出场！');
+      return;
+    }
     var source = verifySource();
     if (!source || !source.trim()) { toast('还没有可以验证的代码哦'); return; }
 
@@ -2983,12 +3171,28 @@ var CppLab = (typeof window !== 'undefined')
         }
       }
       if (ui.type === 'freeEdit' && !ui.completed) {
-        completeCurrent({
-          outcome: outcomeFromAttempts(ui.verifyAttempts),
-          selfCorrection: ui.verifyAttempts > 1,
-          answerOrCode: verifySource() || '',
-          childAction: '自由编辑代码，第 ' + ui.verifyAttempts + ' 次真实编译通过'
-        });
+        // 完成判定（跨文件约定 1）：有 prediction 必须已提交预测；内容配置了
+        // interaction.expectedStdout 时，真实 stdout.trim() 必须与之一致才算过关；
+        // 不匹配只展示输出并提示再试，绝不自动 completeCurrent。
+        var fInter = (ui.variant && ui.variant.interaction) || {};
+        var fExpected = (fInter.expectedStdout !== undefined && fInter.expectedStdout !== null)
+          ? String(fInter.expectedStdout) : null;
+        var fPredOk = !effPrediction() || ui.predicted;
+        var fOutOk = (fExpected === null) ||
+          (String(res.stdout == null ? '' : res.stdout).trim() === fExpected);
+        if (!fPredOk) {
+          card.appendChild(el('p', null, '🤔 编译通过了，但先回到上面把预测填好——猜完再验证才算完整过关！'));
+        } else if (!fOutOk) {
+          card.appendChild(el('p', null, '🤔 真编译器运行成功了，但它说的话和任务目标还不一样。对照上面的任务目标，再改改代码，改好再验证一次！'));
+        } else {
+          completeCurrent({
+            outcome: outcomeFromAttempts(ui.verifyAttempts),
+            selfCorrection: ui.verifyAttempts > 1,
+            answerOrCode: verifySource() || '',
+            childAction: '自由编辑代码，第 ' + ui.verifyAttempts + ' 次真实编译通过' +
+              (fExpected !== null ? '且输出与目标一致' : '')
+          });
+        }
       }
     } else if (res.real === true && (res.status === 'compile_error' || res.status === 'runtime_error' || res.status === 'timeout')) {
       card = el('div', 'feedback-card fb-warn');
@@ -3024,6 +3228,19 @@ var CppLab = (typeof window !== 'undefined')
         card.appendChild(el('div', 'cr-stdout', (res.stdout === '' || res.stdout == null) ? '（这次没有输出）' : res.stdout));
       } else {
         card.appendChild(el('p', null, '现在连不上真正的 C++ 编译器。屏幕上的演示照常玩，等网络好了再来验证！'));
+      }
+      // freeEdit 离线通道（跨文件约定 2）：远程编译不可用时走教师人工确认完成；
+      // 作品/结果绝不打真实验证标记（红线 §14.1 不变）。
+      if (ui.type === 'freeEdit' && !ui.completed) {
+        card.appendChild(el('p', null, '📴 现在没网，真实编译用不了。请老师看过你的代码后确认。'));
+        card.appendChild(btn('👩‍🏫 老师确认完成', 'btn btn-sm', function () {
+          if (ui.completed) return;
+          completeCurrent({
+            outcome: 'N', // 离线无法自动判定，完成度由教师在证据流里补记
+            answerOrCode: verifySource() || '',
+            childAction: '离线-教师人工确认'
+          });
+        }));
       }
     }
     host.insertBefore(card, host.firstChild);

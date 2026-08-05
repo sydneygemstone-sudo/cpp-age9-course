@@ -130,13 +130,13 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     '.viz-leaf-r{right:0; border-left:3px solid #475569;}',
     '.viz-doorframe.open .viz-leaf-l{transform:translateX(-103%);}',
     '.viz-doorframe.open .viz-leaf-r{transform:translateX(103%);}',
-    '.viz-doorstate{font-size:16px; font-weight:700; color:var(--vz-muted);}',
+    '.viz-doorstate{font-size:17px; font-weight:700; color:var(--vz-muted);}',
     '.viz-doorstate.open{color:var(--vz-ok);}',
     /* ---- 双分支轨道 ---- */
     '.viz-tracks{display:flex; flex-direction:column; gap:12px; justify-content:center;}',
     '.viz-track{display:flex; align-items:center; gap:9px; min-width:186px;',
     '  padding:9px 14px; border:3px solid #cbd5e1; border-radius:999px; background:#fff;',
-    '  font-weight:700; font-size:16px; transition:opacity .35s, filter .35s,',
+    '  font-weight:700; font-size:17px; transition:opacity .35s, filter .35s,',
     '  border-color .35s, transform .35s, box-shadow .35s;}',
     '.viz-track-badge{padding:2px 11px; border-radius:999px; color:#fff; font-weight:800;}',
     '.viz-track-badge.true{background:var(--vz-ok);}',
@@ -181,7 +181,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     /* ---- 变量盒 + 输出屏 ---- */
     '.viz-panel{display:flex; gap:10px; flex-wrap:wrap; align-items:stretch;}',
     '.viz-vars{display:flex; gap:10px; flex-wrap:wrap; flex:1 1 220px; align-content:flex-start;}',
-    '.viz-vars:empty::after{content:"（还没有变量盒子）"; color:var(--vz-muted); font-size:14px;',
+    '.viz-vars:empty::after{content:"（还没有变量盒子）"; color:var(--vz-muted); font-size:17px;',
     '  align-self:center;}',
     '.viz-varbox{min-width:100px; padding:8px 15px; text-align:center;',
     '  background:var(--vz-card); border:3px solid var(--vz-primary); border-radius:var(--vz-r);',
@@ -207,7 +207,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     '  font-weight:700;}',
     '.viz-screen-text{margin:0; min-height:30px; white-space:pre-wrap; word-break:break-all;',
     '  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:21px; color:#4ade80;}',
-    '.viz-screen-text.empty{color:#64748b; font-size:15px;}',
+    '.viz-screen-text.empty{color:#64748b; font-size:17px;}',
     '.viz-screen-text.flash{animation:viz-flash .5s ease;}',
     '@keyframes viz-flash{0%{background:rgba(74,222,128,.35)}100%{background:transparent}}',
     /* ---- 庆祝星星 ---- */
@@ -218,6 +218,8 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     /* ---- none 布局 ---- */
     '.viz-none{padding:14px; text-align:center; font-size:15px; color:var(--vz-muted);',
     '  background:var(--vz-card); border-radius:var(--vz-r);}',
+    /* ---- 触屏：点按查释义的小热区（§13-2 触控目标） ---- */
+    '@media (pointer:coarse){.viz-varname{display:inline-block; padding:8px 4px;}}',
     /* ---- no-anim：所有动画/过渡瞬时完成 ---- */
     'body.no-anim .cpplab-viz, body.no-anim .cpplab-viz *,',
     'body.no-anim .cpplab-viz *::before, body.no-anim .cpplab-viz *::after{',
@@ -538,16 +540,19 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
       captionEl.appendChild(captionTextEl);
       root.appendChild(captionEl);
 
-      // 变量盒 + 输出屏
-      var panelEl = h(doc, 'div', 'viz-panel');
-      varsEl = h(doc, 'div', 'viz-vars');
-      panelEl.appendChild(varsEl);
-      var screenEl = h(doc, 'div', 'viz-screen');
-      screenEl.appendChild(h(doc, 'div', 'viz-screen-label', '输出屏'));
-      screenTextEl = h(doc, 'pre', 'viz-screen-text empty', '（还没有输出）');
-      screenEl.appendChild(screenTextEl);
-      panelEl.appendChild(screenEl);
-      root.appendChild(panelEl);
+      // 变量盒 + 输出屏。无 program 的活动（opts.noProgram）没有数据来源，
+      // 这两块整体不渲染（app.js 传入；相关 setVars/setOutput 调用均已判空安全）。
+      if (!opts.noProgram) {
+        var panelEl = h(doc, 'div', 'viz-panel');
+        varsEl = h(doc, 'div', 'viz-vars');
+        panelEl.appendChild(varsEl);
+        var screenEl = h(doc, 'div', 'viz-screen');
+        screenEl.appendChild(h(doc, 'div', 'viz-screen-label', '输出屏'));
+        screenTextEl = h(doc, 'pre', 'viz-screen-text empty', '（还没有输出）');
+        screenEl.appendChild(screenTextEl);
+        panelEl.appendChild(screenEl);
+        root.appendChild(panelEl);
+      }
     }
 
     host.appendChild(root);
@@ -587,7 +592,14 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
       var box = h(doc, 'div', 'viz-varbox');
       box.dataset.name = name;
       var nameEl = h(doc, 'div', 'viz-varname', name);
-      nameEl.title = VAR_NAME_CN[name] || '变量 ' + name;
+      var nameCn = VAR_NAME_CN[name] || '变量 ' + name;
+      nameEl.title = nameCn;
+      // 触屏没有悬停：点按变量名把中文释义放进旁白气泡
+      if (typeof nameEl.addEventListener === 'function') {
+        nameEl.addEventListener('click', function () {
+          setCaption(name + ' 就是「' + nameCn + '」');
+        });
+      }
       box.appendChild(nameEl);
       var valWrap = h(doc, 'div', 'viz-varval');
       valWrap.appendChild(buildValNodes(value));
@@ -924,6 +936,13 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
       // 额外辅助（契约之外的便利方法，app.js 可用可不用）
       setCaption: guarded(setCaption),
       setMood: guarded(setMood),
+      // 教学演示：函数机器吃进 inVal、吐出 outVal（teach-transfer 舞台指令 feed-x-out-y 用）
+      demoFeed: guarded(function (inVal, outVal) {
+        if (!machineEl) return;
+        if (tokenInEl) tokenInEl.textContent = String(inVal);
+        runMachine(String(outVal));
+        setCaption('放进 ' + inVal + '，机器咔嚓一下，出来 ' + outVal + '！');
+      }),
       getModel: function () { return model; },
       getState: function () {
         return {

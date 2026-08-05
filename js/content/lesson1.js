@@ -675,20 +675,14 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     dimensions: ['D3', 'D9'],
     activityType: 'predict',
     visualModel: 'energy',
+    // predict 型下 interaction 本体不渲染（app.js 仅在无 prediction 时才回退读
+    // interaction），判定唯一来源是 prediction —— interaction 只留 schema 要求的
+    // 最小空对象，避免与 prediction 双份维护。
     variants: {
       E: {
         intro: '机器人激动地按住发射按钮：「这次不是演习！真正的 C++ 编译器要跑我们的程序了。先猜猜它会打印什么？」',
         program: coreProgram(),
-        interaction: {
-          question: '真正的 C++ 编译器跑完这段程序，屏幕上会打印出哪个数字？',
-          inputType: 'choice',
-          options: [
-            { id: '6', label: '6' },
-            { id: '7', label: '7' },
-            { id: '3467', label: '3、4、6、7 全都打印' }
-          ],
-          correct: '6'
-        },
+        interaction: {},
         prediction: {
           question: '真正的 C++ 编译器跑完这段程序，屏幕上会打印出哪个数字？',
           inputType: 'choice',
@@ -704,11 +698,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
       S: {
         intro: '机器人打开「完整程序」透视：「看，我们的四行代码住在 main 的家里，这才是发给编译器的全部。预测它会打印几？」',
         program: coreProgram(),
-        interaction: {
-          question: '真正的编译器运行完整程序后，屏幕上会打印出什么数字？',
-          inputType: 'number',
-          correct: 6
-        },
+        interaction: {},
         prediction: {
           question: '真正的编译器运行完整程序后，屏幕上会打印出什么数字？',
           inputType: 'number',
@@ -719,13 +709,9 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
       A: {
         intro: '机器人指着完整程序：「发射前的最后检查——想清楚编译器会打印什么、不会打印什么，再按按钮。」',
         program: coreProgram(),
-        interaction: {
-          question: '真实编译器运行后，屏幕上打印的内容是什么？（提示：想想有几条输出命令，中间值会不会被打印）',
-          inputType: 'number',
-          correct: 6
-        },
+        interaction: {},
         prediction: {
-          question: '真实编译器运行后，屏幕上会打印出什么数字？',
+          question: '真实编译器运行后，屏幕上会打印出什么数字？（提示：想想有几条输出命令，中间值会不会被打印）',
           inputType: 'number',
           correct: 6
         },
