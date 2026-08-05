@@ -38,10 +38,11 @@ var CppLab = (typeof window !== 'undefined')
    * 常量与小工具
    * ==================================================================== */
 
+  // onboarding 主题卡文案单独手改（CONTRACT §13-3）：宠物/探险卡不再自称机器人
   var THEMES = [
-    { id: 'robot', name: '机器人世界', icon: '🤖', skin: 'robo-blue', desc: '和蓝色圆滚机器人一起冒险' },
-    { id: 'pet', name: '宠物乐园', icon: '🐶', skin: 'robo-dog', desc: '绿色小狗机器人是你的伙伴' },
-    { id: 'adventure', name: '探险王国', icon: '🧭', skin: 'robo-orange', desc: '橙色方块机器人陪你出发' }
+    { id: 'robot', name: '机器人世界', icon: '🤖', skin: 'robo-blue', desc: '和蓝色圆滚滚机器人一起冒险' },
+    { id: 'pet', name: '宠物乐园', icon: '🐶', skin: 'robo-dog', desc: '绿色小狗是你的乐园搭档' },
+    { id: 'adventure', name: '探险王国', icon: '🧭', skin: 'robo-orange', desc: '背着小背包的橙色探险搭档陪你出发' }
   ];
 
   var LESSON_META = {
@@ -85,7 +86,22 @@ var CppLab = (typeof window !== 'undefined')
     'energy': '能量'
   };
 
-  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  /* ---------------------- 主题化（CONTRACT §13-3） ---------------------- *
+   * 所有儿童可见的故事文案渲染 sink 过 T()（内容文件保持机器人正本）；
+   * 故事图标过 TIcon()。robot 主题恒等；Theme 模块缺失时原样返回。 */
+  function T(text, themeId) {
+    if (text === null || text === undefined) return text;
+    return (CppLab.Theme && typeof CppLab.Theme.t === 'function')
+      ? CppLab.Theme.t(String(text), themeId) : String(text);
+  }
+  function TIcon(emoji) {
+    if (!emoji) return emoji;
+    return (CppLab.Theme && typeof CppLab.Theme.icon === 'function')
+      ? CppLab.Theme.icon(String(emoji)) : String(emoji);
+  }
+
+  // pick 只用于表扬/鼓励语模板：随机取一条后按当前主题替换角色词
+  function pick(arr) { return T(arr[Math.floor(Math.random() * arr.length)]); }
 
   function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
 
@@ -258,6 +274,11 @@ var CppLab = (typeof window !== 'undefined')
   function applyTheme(themeId) {
     if (themeId) document.body.setAttribute('data-theme', themeId);
     else document.body.removeAttribute('data-theme');
+    if (CppLab.Theme && typeof CppLab.Theme.setTheme === 'function') {
+      CppLab.Theme.setTheme(themeId || 'robot');
+    }
+    // 浏览器标签标题跟随主题（主题未选时保持 index.html 的中性标题）
+    if (themeId) document.title = T('机器人能量站 · C++ 小探险', themeId);
   }
 
   /** 试听闸门：核心诊断活动全部完成才对儿童开放提示阶梯（红线 §14.7）。 */
@@ -383,7 +404,9 @@ var CppLab = (typeof window !== 'undefined')
 
     var view = el('div', 'view view-narrow');
     var card = el('div', 'card onboard-card');
-    card.appendChild(el('div', 'mascot', '🤖'));
+    // 主题选择前用中性吉祥物，选中主题后立即预览该主题的代表形象（§13-3）
+    var mascot = el('div', 'mascot', '✨');
+    card.appendChild(mascot);
     card.appendChild(el('h1', null, '欢迎来到 C++ 小探险！'));
     card.appendChild(el('p', 'form-hint', '在出发之前，先认识一下吧。不用写真名哦，起一个好玩的昵称就行！'));
 
@@ -408,6 +431,7 @@ var CppLab = (typeof window !== 'undefined')
         var all = grid.querySelectorAll('.theme-card');
         for (var i = 0; i < all.length; i++) all[i].classList.remove('selected');
         tc.classList.add('selected');
+        mascot.textContent = t.icon;
         err.textContent = '';
       });
       grid.appendChild(tc);
@@ -504,7 +528,7 @@ var CppLab = (typeof window !== 'undefined')
       grid.appendChild(homeCard({
         icon: '🚀',
         title: '继续我的任务',
-        desc: '上次玩到「' + packTitle(resumeId) + '」，接着来！',
+        desc: '上次玩到「' + T(packTitle(resumeId)) + '」，接着来！',
         cls: 'hc-continue',
         onClick: function () { startLesson(resumeId); }
       }));
@@ -514,12 +538,12 @@ var CppLab = (typeof window !== 'undefined')
       var meta = LESSON_META[id];
       var pack = packOf(id);
       var prog = lessonProgress(id);
-      var desc = meta.desc;
+      var desc = T(meta.desc);
       if (!pack) desc = '内容正在准备中，敬请期待！';
       else if (prog.completed) desc = '已经完成啦，可以再玩一遍！';
       grid.appendChild(homeCard({
         icon: prog.completed ? '🏅' : meta.icon,
-        title: (id === 'trial' ? '进入试听任务' : packTitle(id)),
+        title: (id === 'trial' ? '进入试听任务' : T(packTitle(id))),
         desc: desc,
         disabled: !pack,
         onClick: function () { startLesson(id); }
@@ -570,11 +594,15 @@ var CppLab = (typeof window !== 'undefined')
     return out;
   }
 
+  /** 皮肤名跨主题统一（§13-3 保护规则②）：不再使用「××机器人」写法 */
   function skinDisplayName(skin) {
-    if (skin === 'robo-blue') return '蓝色圆滚机器人';
-    if (skin === 'robo-orange') return '橙色方块机器人';
-    if (skin === 'robo-dog') return '绿色小狗机器人';
-    return '机器人伙伴';
+    if (CppLab.Theme && typeof CppLab.Theme.skinName === 'function') {
+      return CppLab.Theme.skinName(skin);
+    }
+    if (skin === 'robo-blue') return '蓝色圆滚滚';
+    if (skin === 'robo-orange') return '橙色方块侠';
+    if (skin === 'robo-dog') return '绿色电力狗';
+    return '我的伙伴';
   }
 
   function buildArtifactCard(cardData) {
@@ -585,7 +613,8 @@ var CppLab = (typeof window !== 'undefined')
       c.appendChild(el('div', 'ac-line', '出发能量：' + cardData.initialEnergy + ' 格'));
     }
     if (Array.isArray(cardData.events) && cardData.events.length) {
-      c.appendChild(el('div', 'ac-line', '故事事件：' + cardData.events.join('、')));
+      // 作品卡存的是正本事件文案，展示时按当前主题换词
+      c.appendChild(el('div', 'ac-line', '故事事件：' + cardData.events.map(function (ev) { return T(ev); }).join('、')));
     }
     if (typeof cardData.finalEnergy === 'number') {
       c.appendChild(el('div', 'ac-line', '最终能量：' + cardData.finalEnergy + ' 格'));
@@ -652,13 +681,13 @@ var CppLab = (typeof window !== 'undefined')
   function renderLessonIntro(introText) {
     S.view = 'intro';
     clearNode(S.root);
-    S.root.appendChild(buildTopbar({ title: packTitle(S.lessonId) }));
+    S.root.appendChild(buildTopbar({ title: T(packTitle(S.lessonId)) }));
     var view = el('div', 'view view-narrow');
     var card = el('div', 'card lesson-intro-card');
     card.appendChild(el('div', 'li-icon', LESSON_META[S.lessonId] ? LESSON_META[S.lessonId].icon : '🎒'));
-    card.appendChild(el('h1', null, packTitle(S.lessonId)));
+    card.appendChild(el('h1', null, T(packTitle(S.lessonId))));
     introText.split('\n').forEach(function (line) {
-      if (line.trim()) card.appendChild(el('p', null, line));
+      if (line.trim()) card.appendChild(el('p', null, T(line)));
     });
     card.appendChild(btn('开始探险！', 'btn btn-primary', function () { renderLesson(); }));
     view.appendChild(card);
@@ -687,7 +716,7 @@ var CppLab = (typeof window !== 'undefined')
     S.view = 'lesson';
     stopRunTimer();
     clearNode(S.root);
-    S.root.appendChild(buildTopbar({ title: packTitle(S.lessonId), dots: buildProgressDots() }));
+    S.root.appendChild(buildTopbar({ title: T(packTitle(S.lessonId)), dots: buildProgressDots() }));
 
     var view = el('div', 'view');
     var grid = el('div', 'lesson-grid');
@@ -732,7 +761,7 @@ var CppLab = (typeof window !== 'undefined')
     right.appendChild(tlPanel);
 
     var outPanel = el('div', 'panel');
-    outPanel.appendChild(el('div', 'panel-title', '🖥 机器人说（输出）'));
+    outPanel.appendChild(el('div', 'panel-title', T('🖥 机器人说（输出）')));
     var outBox = el('div', 'output-box');
     outBox.appendChild(el('span', 'output-empty', '还没有输出'));
     outPanel.appendChild(outBox);
@@ -884,8 +913,8 @@ var CppLab = (typeof window !== 'undefined')
     S.ui.codeMode = (modes.indexOf('focus') >= 0 && S.engine.scaffold !== 'E') ? 'focus' : modes[0];
     if (S.ui.type === 'freeEdit') S.ui.codeMode = 'free';
 
-    // 左栏：目标 + Visualizer
-    S.dom.goal.textContent = activity.childPrompt || activity.title || '';
+    // 左栏：目标 + Visualizer（儿童可见任务文案过主题词典）
+    S.dom.goal.textContent = T(activity.childPrompt || activity.title || '');
     mountViz(activity, variant);
 
     // 中栏
@@ -1411,19 +1440,19 @@ var CppLab = (typeof window !== 'undefined')
     if (ui.predicted) {
       panel.appendChild(el('div', 'pp-q', '🤔 我的预测'));
       var doneBox = el('div', 'predict-done');
-      doneBox.textContent = '你猜的是：' + String(ui.predictedValue) + ' 。跑一跑，看看机器人怎么说！';
+      doneBox.textContent = T('你猜的是：' + String(ui.predictedValue) + ' 。跑一跑，看看机器人怎么说！');
       panel.appendChild(doneBox);
       return panel;
     }
 
-    panel.appendChild(el('div', 'pp-q', '🤔 先想一想：' + (pred.question || '结果会是什么？')));
+    panel.appendChild(el('div', 'pp-q', '🤔 先想一想：' + T(pred.question || '结果会是什么？')));
     var row = el('div', 'predict-row');
 
     if (pred.inputType === 'choice' && Array.isArray(pred.options)) {
       pred.options.forEach(function (opt) {
         var label = (opt && typeof opt === 'object') ? (opt.label !== undefined ? opt.label : opt.id) : opt;
         var value = (opt && typeof opt === 'object') ? (opt.id !== undefined ? opt.id : opt.label) : opt;
-        var c = el('button', 'chip', String(label));
+        var c = el('button', 'chip', T(String(label)));
         c.type = 'button';
         c.addEventListener('click', function () { submitPredictionValue(value); });
         row.appendChild(c);
@@ -1481,7 +1510,7 @@ var CppLab = (typeof window !== 'undefined')
     } else if (ui.predictedCorrect === false) {
       box.appendChild(el('p', 'predict-done', '热身题差一点点，没关系！现在来真正的问题：'));
     }
-    box.appendChild(el('div', 'pp-q', '⭐ 主问题：' + (inter.question || '')));
+    box.appendChild(el('div', 'pp-q', '⭐ 主问题：' + T(inter.question || '')));
     var row = el('div', 'predict-row');
 
     function submit(value) {
@@ -1515,7 +1544,7 @@ var CppLab = (typeof window !== 'undefined')
       inter.options.forEach(function (opt) {
         var label = (opt && typeof opt === 'object') ? (opt.label !== undefined ? opt.label : opt.id) : opt;
         var value = (opt && typeof opt === 'object') ? (opt.id !== undefined ? opt.id : opt.label) : opt;
-        var c = el('button', 'chip', String(label));
+        var c = el('button', 'chip', T(String(label)));
         c.type = 'button';
         c.addEventListener('click', function () { submit(value); });
         row.appendChild(c);
@@ -1549,7 +1578,7 @@ var CppLab = (typeof window !== 'undefined')
         childAction: '预测后运行验证，预测正确（第 ' + ui.predictionAttempts + ' 次）'
       });
     } else if (ui.predictionAttempts >= 3) {
-      showFeedback('warn', '这个问题有点狡猾！', '你已经很努力啦。看着时间线想一想，机器人每一步都做了什么？', [
+      showFeedback('warn', '这个问题有点狡猾！', T('你已经很努力啦。看着时间线想一想，机器人每一步都做了什么？'), [
         { label: '知道了，继续', primary: true, onClick: function () {
             completeCurrent({
               outcome: 1,
@@ -1559,7 +1588,7 @@ var CppLab = (typeof window !== 'undefined')
           } }
       ]);
     } else {
-      showFeedback('warn', pick(ENCOURAGES), '你的预测和机器人做的不一样。看看右边的时间线，再猜一次？', [
+      showFeedback('warn', pick(ENCOURAGES), T('你的预测和机器人做的不一样。看看右边的时间线，再猜一次？'), [
         { label: '我再想一想', primary: true, onClick: function () { doReset(); } },
         { label: '知道了，继续', onClick: function () {
             completeCurrent({
@@ -1586,9 +1615,9 @@ var CppLab = (typeof window !== 'undefined')
     var activity = ui.activity;
     var head = el('div', 'panel activity-head');
     head.appendChild(el('div', 'ah-kicker', '任务 ' + (S.engine.currentIndex + 1) + ' / ' + S.engine.getActivities().length));
-    head.appendChild(el('h2', null, activity.title || '新任务'));
+    head.appendChild(el('h2', null, T(activity.title || '新任务')));
     if (ui.variant && ui.variant.intro) {
-      head.appendChild(el('p', 'activity-prompt', ui.variant.intro));
+      head.appendChild(el('p', 'activity-prompt', T(ui.variant.intro)));
     }
     d.center.appendChild(head);
 
@@ -1677,7 +1706,7 @@ var CppLab = (typeof window !== 'undefined')
     var ui = S.ui;
     var card = el('div', 'panel');
     card.appendChild(el('div', 'panel-title', '❓ 选一选'));
-    card.appendChild(el('p', 'activity-prompt', inter.question || ''));
+    card.appendChild(el('p', 'activity-prompt', T(inter.question || '')));
     var row = el('div', 'chip-row');
     var multi = !!inter.multi;
     var chosen = {};
@@ -1685,7 +1714,7 @@ var CppLab = (typeof window !== 'undefined')
     var hasCorrect = (inter.options || []).some(function (o) { return o && o.correct === true; });
 
     (inter.options || []).forEach(function (opt) {
-      var c = el('button', 'chip', String(opt.label !== undefined ? opt.label : opt.id));
+      var c = el('button', 'chip', T(String(opt.label !== undefined ? opt.label : opt.id)));
       c.type = 'button';
       c.addEventListener('click', function () {
         if (ui.completed && !multi) return;
@@ -1803,7 +1832,7 @@ var CppLab = (typeof window !== 'undefined')
     var gap = animDelay();
     ids.forEach(function (id, i) {
       var it = byId[id] || { label: String(id) };
-      var text = '第 ' + (i + 1) + ' 步：' + (it.icon ? it.icon + ' ' : '') + it.label + '！' +
+      var text = '第 ' + (i + 1) + ' 步：' + (it.icon ? TIcon(it.icon) + ' ' : '') + T(it.label) + '！' +
         (i === ids.length - 1 ? ' 任务完成！' : '');
       var show = function () {
         if (!S.viz) return;
@@ -1853,7 +1882,7 @@ var CppLab = (typeof window !== 'undefined')
         var it = itemById(id);
         var li = el('li', 'order-item');
         li.appendChild(el('span', 'oi-num', String(idx + 1)));
-        var lbl = el('span', 'oi-label', (it.icon ? it.icon + ' ' : '') + it.label);
+        var lbl = el('span', 'oi-label', (it.icon ? TIcon(it.icon) + ' ' : '') + T(it.label));
         li.appendChild(lbl);
         var btns = el('span', 'oi-btns');
         var up = btn('⬆ 上移', 'btn btn-sm', function () { move(idx, -1); });
@@ -1953,7 +1982,7 @@ var CppLab = (typeof window !== 'undefined')
       if (inter.goal.type === 'finalVar') {
         goalText = '目标：让 ' + inter.goal.name + ' 最后变成 ' + inter.goal.value + '。';
       } else if (inter.goal.type === 'stdout') {
-        goalText = '目标：让机器人最后说出「' + inter.goal.value + '」。';
+        goalText = T('目标：让机器人最后说出「' + inter.goal.value + '」。');
       }
     }
     card.appendChild(el('p', 'activity-prompt', '点亮下面的魔法槽位，改一改数字，再运行看看！' + (goalText ? ' ' + goalText : '')));
@@ -1966,7 +1995,7 @@ var CppLab = (typeof window !== 'undefined')
       var cur = slotReadValue(step, slot.path);
       var chip = el('button', 'slot-chip');
       chip.type = 'button';
-      chip.appendChild(document.createTextNode((slot.label || '槽位') + '：'));
+      chip.appendChild(document.createTextNode(T(slot.label || '槽位') + '：'));
       chip.appendChild(el('span', 'sc-val', cur === undefined ? '?' : String(cur)));
       chip.addEventListener('click', function () {
         openSlotEditor(editorHost, slot, chip);
@@ -1982,7 +2011,7 @@ var CppLab = (typeof window !== 'undefined')
     var ui = S.ui;
     clearNode(hostNode);
     var box = el('div', 'slot-editor');
-    box.appendChild(el('span', null, '「' + (slot.label || '槽位') + '」改成：'));
+    box.appendChild(el('span', null, '「' + T(slot.label || '槽位') + '」改成：'));
 
     function applyValue(v) {
       var step = slotGetStep(ui.workProgram, slot.stepIndex);
@@ -2004,7 +2033,7 @@ var CppLab = (typeof window !== 'undefined')
       var shown = (v && typeof v === 'object')
         ? (v.label !== undefined ? v.label : (v.id !== undefined ? v.id : '已选择'))
         : v;
-      if (valSpan) valSpan.textContent = String(shown);
+      if (valSpan) valSpan.textContent = T(String(shown));
       clearNode(hostNode);
       clearRunPanels();
       var codeHost = document.getElementById('code-host');
@@ -2016,7 +2045,7 @@ var CppLab = (typeof window !== 'undefined')
     if (slot.inputType === 'choice' && Array.isArray(slot.choices)) {
       slot.choices.forEach(function (c) {
         var lbl = (c && typeof c === 'object') ? String(c.label !== undefined ? c.label : c.id) : String(c);
-        box.appendChild(btn(lbl, 'btn btn-sm', function () { applyValue(c); }));
+        box.appendChild(btn(T(lbl), 'btn btn-sm', function () { applyValue(c); }));
       });
     } else {
       var input = el('input', 'predict-input');
@@ -2102,7 +2131,7 @@ var CppLab = (typeof window !== 'undefined')
     badge.title = '自由写的代码由真正的 C++ 编译器运行，左边的画面不会跟着动';
     title.appendChild(badge);
     card.appendChild(title);
-    if (inter.goal) card.appendChild(el('p', 'activity-prompt', inter.goal));
+    if (inter.goal) card.appendChild(el('p', 'activity-prompt', T(inter.goal)));
     card.appendChild(el('p', 'form-hint', '在下面的代码框里写代码，然后按「真实C++验证」，让真正的编译器来运行它！'));
     host.appendChild(card);
   }
@@ -2136,7 +2165,7 @@ var CppLab = (typeof window !== 'undefined')
     if (bugLine !== undefined && lineNo === bugLine) {
       ui.bugFoundLine = lineNo;
       var note = el('div', 'bug-note');
-      note.appendChild(el('p', null, '🎯 就是这一行！' + (bug.whyChild || '这里写得不太对。')));
+      note.appendChild(el('p', null, '🎯 就是这一行！' + T(bug.whyChild || '这里写得不太对。')));
       note.appendChild(el('p', null, '应该把「' + bug.wrongPiece + '」改成什么？'));
       var row = el('div', 'chip-row');
       var options = [bug.rightPiece, bug.wrongPiece];
@@ -2260,7 +2289,7 @@ var CppLab = (typeof window !== 'undefined')
     if (ui.scriptIndex === undefined) ui.scriptIndex = 0;
 
     var card = el('div', 'panel');
-    card.appendChild(el('div', 'panel-title', '🧑‍🏫 ' + (teach.title || '小老师时间')));
+    card.appendChild(el('div', 'panel-title', '🧑‍🏫 ' + T(teach.title || '小老师时间')));
     var box = el('div', 'teach-box');
     var stepBox = el('div', 'tb-step');
     var showBox = el('div');
@@ -2286,7 +2315,7 @@ var CppLab = (typeof window !== 'undefined')
       var st = script[i];
       clearNode(showBox);
       if (st) {
-        stepBox.textContent = st.say || '';
+        stepBox.textContent = T(st.say || '');
         // show 是舞台指令（英文标签），不给孩子看原文：认识的标签映射给 Visualizer 演出，
         // 不认识的直接不显示（建造遗留5）。
         if (st.show) playTeachShow(String(st.show));
@@ -2325,7 +2354,7 @@ var CppLab = (typeof window !== 'undefined')
     var ui = S.ui;
     clearNode(hostNode);
     var box = el('div', 'predict-panel');
-    box.appendChild(el('div', 'pp-q', '💪 换你试试：' + (transfer.question || '')));
+    box.appendChild(el('div', 'pp-q', '💪 换你试试：' + T(transfer.question || '')));
     var row = el('div', 'predict-row');
 
     function submit(value) {
@@ -2364,7 +2393,7 @@ var CppLab = (typeof window !== 'undefined')
         var label = (opt && typeof opt === 'object') ? (opt.label !== undefined ? opt.label : opt.id) : opt;
         var value = (opt && typeof opt === 'object') ? (opt.id !== undefined ? opt.id : opt.label) : opt;
         row.appendChild((function () {
-          var c = el('button', 'chip', String(label));
+          var c = el('button', 'chip', T(String(label)));
           c.type = 'button';
           c.addEventListener('click', function () { submit(value); });
           return c;
@@ -2391,11 +2420,12 @@ var CppLab = (typeof window !== 'undefined')
     var ui = S.ui;
     var card = el('div', 'panel');
     card.appendChild(el('div', 'panel-title', '🗣 讲明白'));
-    card.appendChild(el('p', 'activity-prompt', inter.prompt || '用你自己的话讲一讲吧！'));
+    card.appendChild(el('p', 'activity-prompt', T(inter.prompt || '用你自己的话讲一讲吧！')));
 
     if (Array.isArray(inter.sentenceStarters) && inter.sentenceStarters.length) {
       var row = el('div', 'chip-row');
-      inter.sentenceStarters.forEach(function (starter) {
+      inter.sentenceStarters.forEach(function (rawStarter) {
+        var starter = T(rawStarter);
         var c = el('button', 'chip', starter + '…');
         c.type = 'button';
         c.addEventListener('click', function () {
@@ -2478,7 +2508,7 @@ var CppLab = (typeof window !== 'undefined')
       g.appendChild(el('div', 'bg-title', titleText));
       var row = el('div', 'chip-row');
       options.forEach(function (opt) {
-        var c = el('button', 'chip', buildOptLabel(opt, kind));
+        var c = el('button', 'chip', T(buildOptLabel(opt, kind)));
         c.type = 'button';
         c.addEventListener('click', function () {
           if (kind === 'events') {
@@ -2508,7 +2538,7 @@ var CppLab = (typeof window !== 'undefined')
       card.appendChild(g);
     }
 
-    group('选一个机器人伙伴', choices.skin, 'skin');
+    group(T('选一个机器人伙伴'), choices.skin, 'skin');
     group('选择出发能量', choices.initialEnergy, 'initialEnergy');
     group('挑选故事事件（可以多选）', choices.events, 'events');
 
@@ -2540,9 +2570,9 @@ var CppLab = (typeof window !== 'undefined')
       if (!prog || !CppLab.IR) return;
       var exec = CppLab.IR.execute(prog);
       if (exec.error) {
-        preview.appendChild(document.createTextNode('这个组合让机器人卡住了：' + exec.error));
+        preview.appendChild(document.createTextNode(T('这个组合让机器人卡住了：') + exec.error));
       } else {
-        preview.appendChild(document.createTextNode('📖 故事预演：机器人最后的能量是 ' + String(exec.finalVars.energy) + ' 格。'));
+        preview.appendChild(document.createTextNode(T('📖 故事预演：机器人最后的能量是 ' + String(exec.finalVars.energy) + ' 格。')));
       }
       try {
         var focus = CppLab.IR.toFocusCpp(prog);
@@ -2603,7 +2633,7 @@ var CppLab = (typeof window !== 'undefined')
 
     var save = btn('💾 保存我的作品卡', 'btn btn-primary', function () {
       var p = ui.buildPick;
-      if (Array.isArray(choices.skin) && choices.skin.length && !p.skin) { toast('先选一个机器人伙伴'); return; }
+      if (Array.isArray(choices.skin) && choices.skin.length && !p.skin) { toast(T('先选一个机器人伙伴')); return; }
       if (Array.isArray(choices.initialEnergy) && choices.initialEnergy.length && p.initialEnergy === null) { toast('再选一个出发能量'); return; }
       var cardData = saveCard(false);
       if (ui.completed) { toast('作品卡更新好啦！'); return; }
@@ -2667,7 +2697,7 @@ var CppLab = (typeof window !== 'undefined')
 
     var box = el('div', 'predict-panel');
     box.style.marginTop = '12px';
-    box.appendChild(el('div', 'pp-q', '🔍 侦探提问：' + (cp.question || '')));
+    box.appendChild(el('div', 'pp-q', '🔍 侦探提问：' + T(cp.question || '')));
     var row = el('div', 'predict-row');
     var fbRow = el('div');
 
@@ -2704,7 +2734,7 @@ var CppLab = (typeof window !== 'undefined')
       cp.options.forEach(function (opt) {
         var label = (opt && typeof opt === 'object') ? (opt.label !== undefined ? opt.label : opt.id) : opt;
         var value = (opt && typeof opt === 'object') ? (opt.id !== undefined ? opt.id : opt.label) : opt;
-        var c = el('button', 'chip', String(label));
+        var c = el('button', 'chip', T(String(label)));
         c.type = 'button';
         c.addEventListener('click', function () { answer(value); });
         row.appendChild(c);
@@ -2779,7 +2809,7 @@ var CppLab = (typeof window !== 'undefined')
     if (program && CppLab.IR) {
       peek = btn('🔭 查看完整程序', 'btn btn-sm btn-ghost code-peek', function () {
         openModal('完整的 C++ 程序', function (body) {
-          body.appendChild(el('p', 'form-hint', '这就是机器人真正读的完整程序。现在看不懂也没关系，我们在一格一格点亮它！'));
+          body.appendChild(el('p', 'form-hint', T('这就是机器人真正读的完整程序。现在看不懂也没关系，我们在一格一格点亮它！')));
           var full = CppLab.IR.toFullCpp(program);
           // bughunt：修好之前透视的也是带 bug 版——提前展示修好行会泄露答案
           if (ui.type === 'bughunt' && ui.bugFixed) full = bugFixedSource(full);
@@ -3164,8 +3194,8 @@ var CppLab = (typeof window !== 'undefined')
           try {
             S.viz.setDoor(doorOpen);
             if (typeof S.viz.setCaption === 'function') {
-              S.viz.setCaption('这一下是真实编译结果驱动的：真正的 C++ 说「' + realOut + '」，所以舱门' +
-                (doorOpen ? '打开了！' : '保持关闭，继续充电。'));
+              S.viz.setCaption(T('这一下是真实编译结果驱动的：真正的 C++ 说「' + realOut + '」，所以舱门' +
+                (doorOpen ? '打开了！' : '保持关闭，继续充电。')));
             }
           } catch (e) { /* 可视化驱动失败不阻断结果展示 */ }
         }
@@ -3283,7 +3313,7 @@ var CppLab = (typeof window !== 'undefined')
         n += 1;
         var item = el('div', 'hint-item');
         item.appendChild(el('span', 'hi-tag', '小提示 ' + n));
-        item.appendChild(document.createTextNode(h.text || ''));
+        item.appendChild(document.createTextNode(T(h.text || '')));
         d.hintList.appendChild(item);
       }
     });
@@ -3405,12 +3435,12 @@ var CppLab = (typeof window !== 'undefined')
     var fu = ui.variant && ui.variant.interaction && ui.variant.interaction.followUp;
     if (fu && !ui.followUpDone) {
       renderFollowUp(fu, function () {
-        showFeedback('ok', pick(PRAISES), ui.activity.successCriteriaChildText || '这个任务完成啦！', doneActions);
+        showFeedback('ok', pick(PRAISES), T(ui.activity.successCriteriaChildText || '这个任务完成啦！'), doneActions);
       });
       return;
     }
 
-    showFeedback('ok', pick(PRAISES), ui.activity.successCriteriaChildText || '这个任务完成啦！', doneActions);
+    showFeedback('ok', pick(PRAISES), T(ui.activity.successCriteriaChildText || '这个任务完成啦！'), doneActions);
   }
 
   /**
@@ -3434,12 +3464,12 @@ var CppLab = (typeof window !== 'undefined')
     card.appendChild(el('div', 'fb-title', '⭐ 再来一个小挑战'));
 
     if (fu.type === 'choice') {
-      card.appendChild(el('p', null, fu.question || ''));
+      card.appendChild(el('p', null, T(fu.question || '')));
       var row = el('div', 'chip-row');
       var hasCorrect = (fu.options || []).some(function (o) { return o && o.correct === true; });
       var answered = false;
       (fu.options || []).forEach(function (opt) {
-        var c = el('button', 'chip', String(opt.label !== undefined ? opt.label : opt.id));
+        var c = el('button', 'chip', T(String(opt.label !== undefined ? opt.label : opt.id)));
         c.type = 'button';
         c.addEventListener('click', function () {
           if (answered) return;
@@ -3480,7 +3510,7 @@ var CppLab = (typeof window !== 'undefined')
       var tryRow = el('div');
       fu.slots.forEach(function (slot) {
         var box = el('div', 'slot-editor');
-        box.appendChild(el('span', null, (slot.label || '槽位') + '：'));
+        box.appendChild(el('span', null, T(slot.label || '槽位') + '：'));
         function tryValue(v) {
           var step = slotGetStep(work, slot.stepIndex);
           if (!step) return;
@@ -3546,7 +3576,7 @@ var CppLab = (typeof window !== 'undefined')
     S.view = 'end';
     var lessonId = S.lessonId;
     clearNode(S.root);
-    S.root.appendChild(buildTopbar({ title: packTitle(lessonId) }));
+    S.root.appendChild(buildTopbar({ title: T(packTitle(lessonId)) }));
 
     var view = el('div', 'view view-narrow end-page');
     var card = el('div', 'card');
@@ -3564,9 +3594,9 @@ var CppLab = (typeof window !== 'undefined')
       fb.badges.forEach(function (b, i) {
         var bc = el('div', 'badge-card');
         bc.style.animationDelay = (i * 0.15) + 's';
-        bc.appendChild(el('div', 'bd-icon', b.icon || '🏅'));
-        bc.appendChild(el('div', 'bd-title', b.title || '小小徽章'));
-        if (b.desc) bc.appendChild(el('div', 'bd-desc', b.desc));
+        bc.appendChild(el('div', 'bd-icon', TIcon(b.icon || '🏅')));
+        bc.appendChild(el('div', 'bd-title', T(b.title || '小小徽章')));
+        if (b.desc) bc.appendChild(el('div', 'bd-desc', T(b.desc)));
         grid.appendChild(bc);
       });
       card.appendChild(grid);
@@ -3580,7 +3610,8 @@ var CppLab = (typeof window !== 'undefined')
       var row = el('div', 'chip-row');
       row.style.justifyContent = 'center';
       fb.learnedOne.options.forEach(function (optText) {
-        var c = el('button', 'chip', String(optText));
+        // 展示按主题换词；写入 session 的仍是正本句（教师/报告读正本）
+        var c = el('button', 'chip', T(String(optText)));
         c.type = 'button';
         c.addEventListener('click', function () {
           var all = row.querySelectorAll('.chip');
@@ -3601,7 +3632,7 @@ var CppLab = (typeof window !== 'undefined')
     if (fb && fb.nextPreview) {
       var np = el('div', 'next-preview');
       np.appendChild(el('strong', null, '下次预告：'));
-      np.appendChild(document.createTextNode(' ' + fb.nextPreview));
+      np.appendChild(document.createTextNode(' ' + T(fb.nextPreview)));
       card.appendChild(np);
     }
 

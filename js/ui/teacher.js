@@ -109,6 +109,18 @@ var CppLab = (typeof window !== 'undefined')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  /**
+   * 主题化（CONTRACT §13-3）：六卡/实时区/证据流里教师要照着读的口播词过 T()，
+   * 让教师读到的故事词与孩子屏幕一致；报告区/家长报告保持正本，不过 T()。
+   * 主题取 session.theme（robot 恒等）。
+   */
+  function T(text) {
+    if (text === null || text === undefined) return text;
+    var themeId = (state.session && state.session.theme) || 'robot';
+    return (CppLab.Theme && typeof CppLab.Theme.t === 'function')
+      ? CppLab.Theme.t(String(text), themeId) : String(text);
+  }
+
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
 
   function fmtTime(ts) {
@@ -466,7 +478,7 @@ var CppLab = (typeof window !== 'undefined')
         var done = ((s.lessons || {})[id] || {}).completed;
         return '<button class="lesson-tab' + (id === state.lessonId ? ' active' : '') + '" data-lesson="' + id + '" ' +
           'title="切换查看这门课的活动、六卡与控制">' +
-          esc(LESSON_NAMES[id] || id) + (done ? ' ✓' : '') + '</button>';
+          esc(T(LESSON_NAMES[id] || id)) + (done ? ' ✓' : '') + '</button>';
       }).join('');
       Array.prototype.forEach.call(tabs.querySelectorAll('[data-lesson]'), function (btn) {
         btn.addEventListener('click', function () {
@@ -543,17 +555,17 @@ var CppLab = (typeof window !== 'undefined')
     }
     var card1 =
       '<div class="card">' +
-      '<h3>' + esc(LESSON_NAMES[state.lessonId] || state.lessonId) + ' · 活动 ' + esc(act.order) + '：' + esc(act.title || '') + '</h3>' +
+      '<h3>' + esc(T(LESSON_NAMES[state.lessonId] || state.lessonId)) + ' · 活动 ' + esc(act.order) + '：' + esc(T(act.title || '')) + '</h3>' +
       '<div class="kv" style="margin-bottom:6px;">' +
       '<span class="badge badge-mut">' + esc(TYPE_LABEL[act.activityType] || act.activityType || '') + '</span> ' +
       (minutes ? '<span class="badge badge-mut">' + esc(minutes) + '</span> ' : '') + dims + '</div>' +
-      '<p style="margin:4px 0;"><b>学习目标：</b>' + esc(act.learningObjective || '—') + '</p>' +
-      '<p style="margin:4px 0;"><b>孩子看到的任务：</b>' + esc(act.childPrompt || '—') + '</p>' +
+      '<p style="margin:4px 0;"><b>学习目标：</b>' + esc(T(act.learningObjective || '—')) + '</p>' +
+      '<p style="margin:4px 0;"><b>孩子看到的任务：</b>' + esc(T(act.childPrompt || '—')) + '</p>' +
       (act.evidenceRule && act.evidenceRule.note
-        ? '<p style="margin:4px 0;"><b>观察要点：</b>' + esc(act.evidenceRule.note) + '</p>' : '') +
+        ? '<p style="margin:4px 0;"><b>观察要点：</b>' + esc(T(act.evidenceRule.note)) + '</p>' : '') +
       '<p style="margin:4px 0;">' + stateLine + '</p>' +
       (variant && variant.successCriteria
-        ? '<p class="kv" style="margin:4px 0;"><b>完成标准（当前档）：</b>' + esc(variant.successCriteria) + '</p>' : '') +
+        ? '<p class="kv" style="margin:4px 0;"><b>完成标准（当前档）：</b>' + esc(T(variant.successCriteria)) + '</p>' : '') +
       '</div>';
 
     /* --- 卡2：支架档 + 系统建议 + 一键调档 --- */
@@ -591,7 +603,7 @@ var CppLab = (typeof window !== 'undefined')
           : ' <span class="badge badge-warn">✗ 与程序不一致（这本身是好的诊断材料）</span>') + '</p>');
     }
     if (variant && variant.prediction) {
-      childBits.push('<p class="kv" style="margin:2px 0;">预测题（当前档）：' + esc(variant.prediction.question || '') +
+      childBits.push('<p class="kv" style="margin:2px 0;">预测题（当前档）：' + esc(T(variant.prediction.question || '')) +
         ' · 正确答案：<b>' + esc(String(variant.prediction.correct)) + '</b>（仅教师可见）</p>');
     }
     if (evList.length) {
@@ -604,7 +616,7 @@ var CppLab = (typeof window !== 'undefined')
           : ' <span class="muted">（无书面作答）</span>';
         return '<div style="margin:6px 0;padding:6px 10px;background:#f8fafc;border-radius:8px;">' +
           '<div class="kv">' + fmtTime(e.timestamp) + ' · ' + outcomeBadge(e.outcome) + '</div>' +
-          '<div style="font-size:13px;"><b>做了什么：</b>' + esc(e.childAction || '—') + '</div>' +
+          '<div style="font-size:13px;"><b>做了什么：</b>' + esc(T(e.childAction || '—')) + '</div>' +
           '<div style="font-size:13px;"><b>作答/代码：</b>' + answerHtml + '</div>' +
           '</div>';
       }).join('');
@@ -637,7 +649,7 @@ var CppLab = (typeof window !== 'undefined')
         ' <button class="btn btn-sm" data-hint-read="' + esc(e.level) + '" ' +
         'title="你已经口头把这条提示讲给孩子后点这里：计入提示统计，影响支持等级记录">记为已代读</button>';
       return '<tr><td style="white-space:nowrap;"><b>' + esc(e.level) + '</b><div class="kv">' + esc(HINT_MEANING[e.level] || '') + '</div></td>' +
-        '<td>' + esc(e.text) + lockNote + '</td>' +
+        '<td>' + esc(T(e.text)) + lockNote + '</td>' +
         '<td style="white-space:nowrap;">' + mark + readBtn + '</td></tr>';
     }).join('');
     var card4 =
@@ -655,7 +667,7 @@ var CppLab = (typeof window !== 'undefined')
     var notes = (s.teacherNotes || []).slice().reverse().slice(0, 5);
     var notesHtml = notes.map(function (n) {
       return '<div class="kv" style="margin:3px 0;">' + fmtTime(n.at) + ' · ' +
-        esc(LESSON_NAMES[n.lessonId] || n.lessonId || '—') +
+        esc(T(LESSON_NAMES[n.lessonId] || n.lessonId || '—')) +
         (n.activityId ? ' · ' + esc(n.activityId) : '') + '：' + esc(n.text) + '</div>';
     }).join('') || '<div class="kv">（还没有笔记）</div>';
     var cardNote =
@@ -777,19 +789,20 @@ var CppLab = (typeof window !== 'undefined')
       return;
     }
     var c = act.teacherCards;
+    // 六卡是教师口播词：过 T() 让教师读到的故事词与孩子屏幕一致（§13-3）
     function listOf(arr, ordered) {
       if (!arr || !arr.length) return '<p class="muted">（无）</p>';
       var tag = ordered ? 'ol' : 'ul';
-      return '<' + tag + '>' + arr.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</' + tag + '>';
+      return '<' + tag + '>' + arr.map(function (x) { return '<li>' + esc(T(x)) + '</li>'; }).join('') + '</' + tag + '>';
     }
     panel.innerHTML =
       '<div class="tcards">' +
-      '<div class="tcard"><h4><span class="tcard-no">①</span>30 秒知识真相</h4><p>' + esc(c.truth || '—') + '</p></div>' +
-      '<div class="tcard"><h4><span class="tcard-no">②</span>推荐演示</h4><p>' + esc(c.demo || '—') + '</p></div>' +
+      '<div class="tcard"><h4><span class="tcard-no">①</span>30 秒知识真相</h4><p>' + esc(T(c.truth || '—')) + '</p></div>' +
+      '<div class="tcard"><h4><span class="tcard-no">②</span>推荐演示</h4><p>' + esc(T(c.demo || '—')) + '</p></div>' +
       '<div class="tcard"><h4><span class="tcard-no">③</span>三个追问</h4>' + listOf(c.questions, true) + '</div>' +
       '<div class="tcard"><h4><span class="tcard-no">④</span>常见误区</h4>' + listOf(c.misconceptions, false) + '</div>' +
       '<div class="tcard"><h4><span class="tcard-no">⑤</span>三步降阶</h4>' + listOf(c.rescueSteps, true) + '</div>' +
-      '<div class="tcard"><h4><span class="tcard-no">⑥</span>加速扩展</h4><p>' + esc(c.extension || '—') + '</p></div>' +
+      '<div class="tcard"><h4><span class="tcard-no">⑥</span>加速扩展</h4><p>' + esc(T(c.extension || '—')) + '</p></div>' +
       '</div>';
   }
 
@@ -839,8 +852,8 @@ var CppLab = (typeof window !== 'undefined')
 
       var body =
         '<div class="evi-body">' +
-        '<div><b>任务：</b>' + esc(e.taskPrompt || '—') + '</div>' +
-        '<div><b>孩子的做法：</b>' + esc(e.childAction || '—') + '</div>' +
+        '<div><b>任务：</b>' + esc(T(e.taskPrompt || '—')) + '</div>' +
+        '<div><b>孩子的做法：</b>' + esc(T(e.childAction || '—')) + '</div>' +
         '<div><b>作答/代码：</b>' + answerHtml + '</div>' +
         '<div class="kv">尝试 ' + esc(String(e.attemptCount || 1)) + ' 次' +
         (e.selfCorrection ? ' · <span style="color:#166534;">出现自我修正（正向证据）</span>' : '') +
@@ -951,7 +964,7 @@ var CppLab = (typeof window !== 'undefined')
 
       '<div class="card"><h3>重置当前活动</h3>' +
       '<div class="ctl-tip">清除这个活动的完成状态，让孩子可以重做一遍。已记录的证据和提示历史保留不动（课程红线：重置不丢证据）。孩子端刷新或切活动后生效。</div>' +
-      '<button class="btn btn-danger" id="ctl-reset"' + (act ? '' : ' disabled') + '>重置「' + esc(act ? act.title : '') + '」</button>' +
+      '<button class="btn btn-danger" id="ctl-reset"' + (act ? '' : ' disabled') + '>重置「' + esc(act ? T(act.title) : '') + '」</button>' +
       '</div>' +
 
       '<div class="card"><h3>锁定答案（H5 终极提示）</h3>' +
@@ -993,7 +1006,7 @@ var CppLab = (typeof window !== 'undefined')
     if (resetBtn) {
       resetBtn.addEventListener('click', function () {
         if (!act) return;
-        askConfirm('重置活动「' + act.title + '」',
+        askConfirm('重置活动「' + T(act.title) + '」',
           '<p style="font-size:13px;">将清除这个活动的完成状态（完成度、预测记录），孩子可以重做。<br>' +
           '<b>不会</b>删除任何证据记录和提示历史。要继续吗？</p>',
           '确认重置', true,
@@ -1044,7 +1057,7 @@ var CppLab = (typeof window !== 'undefined')
     if (!act) return;
     var variant = variantFor(act);
     if (!variant || !Array.isArray(variant.program) || !variant.program.length) {
-      openModal('正确轨迹 · ' + act.title,
+      openModal('正确轨迹 · ' + T(act.title),
         '<p style="font-size:13px;">当前支架档（' + esc((state.session.path || 'S')) + '）的这个活动没有可执行程序' +
         '（例如选择、排序、口头解释类活动），没有逐行轨迹可以展示。<br>' +
         '需要示范时请使用教师六卡里的「推荐演示」。</p>');
@@ -1085,7 +1098,7 @@ var CppLab = (typeof window !== 'undefined')
                 : '不一致 <span class="badge badge-err">✗ 请报告给课程维护者</span>') + '</p>';
       }
     }
-    openModal('正确轨迹 · ' + act.title + '（' + (state.session.path || 'S') + ' 档）',
+    openModal('正确轨迹 · ' + T(act.title) + '（' + (state.session.path || 'S') + ' 档）',
       '<p class="kv" style="margin:0 0 4px;">聚焦代码（孩子端看到的同一份）：</p>' +
       '<pre class="code">' + esc(focus) + '</pre>' +
       '<p class="kv" style="margin:8px 0 4px;">逐行执行说明（可以照着读给孩子听）：</p>' +

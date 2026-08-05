@@ -7,7 +7,7 @@
 - **纯静态、零构建、零依赖**：双击 `index.html` 即可在 Chrome 运行（必须 file:// 兼容）。
 - 禁止：ES modules（import/export 语法）、fetch 本地文件、任何 CDN/外部 JS/CSS/字体、npm、eval。
 - 所有 JS 通过普通 `<script>` 标签加载，共享全局命名空间 `window.CppLab`。
-- **纯逻辑文件必须 Node 兼容**（用于测试）：`ir.js / storage.js / evidence.js / hints.js / compiler.js / report.js / lessonEngine.js / content/*.js` 顶层不得直接访问 `document`/`window`（需 `typeof window !== 'undefined'` 保护），文件末尾加：
+- **纯逻辑文件必须 Node 兼容**（用于测试）：`ir.js / storage.js / theme.js / evidence.js / hints.js / compiler.js / report.js / lessonEngine.js / content/*.js` 顶层不得直接访问 `document`/`window`（需 `typeof window !== 'undefined'` 保护），文件末尾加：
   ```js
   if (typeof module !== 'undefined' && module.exports) { module.exports = <本模块对象>; }
   ```
@@ -24,6 +24,7 @@
 | `js/engine/lessonEngine.js`, `js/engine/storage.js`, `js/tests/test-engine.js` | engine-core |
 | `js/engine/compiler.js`, `js/engine/hints.js`, `js/tests/test-compiler.js` | compiler-hints |
 | `js/engine/evidence.js`, `js/engine/report.js`, `js/tests/test-evidence.js` | evidence-report |
+| `js/engine/theme.js`, `js/tests/test-theme.js` | theme |
 | `js/content/trial.js` | content-trial |
 | `js/content/lesson1.js` | content-lesson1 |
 | `js/content/lesson2.js` | content-lesson2 |
@@ -34,6 +35,7 @@
 ```html
 <script src="js/engine/ir.js"></script>
 <script src="js/engine/storage.js"></script>
+<script src="js/engine/theme.js"></script>
 <script src="js/engine/evidence.js"></script>
 <script src="js/engine/hints.js"></script>
 <script src="js/engine/compiler.js"></script>
@@ -249,3 +251,18 @@ Result = {status:'ok'|'compile_error'|'runtime_error'|'timeout'|'offline',
 1. **完成判定**：freeEdit 的 `interaction` 可带 `expectedStdout:String`（内容侧提供）。UI 侧完成规则——变体带 `prediction` 时必须已提交预测（未提交时「真实C++验证」引导先预测，不发起编译）；真实编译 `real:true && status:'ok'`；配置了 `expectedStdout` 时还需 `stdout.trim() === expectedStdout`，三者齐备才 `completeCurrent`。输出不匹配只展示真实输出并提示再试，绝不自动过关（堵死"不改代码直接验证也能过关"）。
 2. **离线通道**：远程编译不可用（`real:false`）时，freeEdit 在「概念演示」卡内显示「📴 现在没网，真实编译用不了。请老师看过你的代码后确认」与「老师确认完成」按钮；点击后 `completeCurrent`，证据 `childAction` 记「离线-教师人工确认」（outcome 记 `N`，由教师在证据流补记完成度）；作品/结果绝不打真实验证标记（红线 §14.1 不变）。
 3. **两段式 predict**：predict 型活动同时带 `variants.*.prediction`（热身）与 `interaction.question`（主提问）时，预测+运行完成后由 UI 弹出主提问作答，完成判定看主提问而非热身。例外：内容把同一道题同时写进两处（问题与答案完全相同，如 lesson2-06）视为单段式，不重复提问。bughunt / teach-transfer / slots 带 `prediction` 时，运行结束一律走各自类型的完成判定，预测仅作热身，不得短路 `completeCurrent`。
+
+## §13-3 主题化规则（2026-08-05 追加；渲染层主题化，与 §14.8 内容/引擎分离并行不悖）
+
+总架构裁定（不许偏离）：**内容文件 `js/content/*.js` 保持「机器人世界」为正本**；三主题只在渲染层实现。主题 id 沿用 `session.theme` 现值：`robot`（机器人世界）/ `pet`（宠物乐园）/ `adventure`（探险王国）。
+
+1. **模块**：`js/engine/theme.js`（`CppLab.Theme`，Node 兼容，加载顺序见 §2）。
+   - `t(text, themeId)`：正本中文 → 主题词汇。`themeId` 省略时读当前 `session.theme`（`setTheme` 缓存优先，Storage 兜底）；`robot` 恒等返回；**最长优先匹配**；identity 保护词条先行。词典是主题词汇的**唯一权威**——同一道具全课程必须同词，新增长尾词条只能加进 `theme.js` 的 VOCAB 表。
+   - `icon(emoji, themeId)`：故事图标按主题替换（🔋→🥫/💎、⛽→🥫/💎、🚀→🚐/🛸、🔦→💡/🔥、🤖→🐶/🎒）；未登记图标恒等。
+   - `skinName(skin)`：皮肤名跨主题统一为「蓝色圆滚滚 / 橙色方块侠 / 绿色电力狗」，任何界面不得再用「××机器人」写法。
+2. **identity 保护词条（优先于词典）**：「机器人世界」「宠物乐园」「探险王国」以及兴趣类别「机器人与机械」原样保留，绝不被词典拆改。
+3. **过词典的表面**：儿童端所有故事文案渲染 sink（childPrompt/intro/title/交互问题与选项/hints/prediction/successCriteria/toast 与反馈模板/开场白/build 标签与作品卡预演/槽位目标/完整程序弹窗说明/徽章页/「机器人说（输出）」面板标题等）；Visualizer 的 caption 与 aria-label；教师端六卡/实时区/证据流里教师照读的口播词（教师读到的故事词必须与孩子屏幕一致）。
+4. **绝不过词典的表面**：代码台（blocks/focus/full/free）、聚焦代码与完整程序、编译器输出与友好错误、`OPEN`/`CHARGE` 等代码字面量、C++ 标识符释义表（energy=能量 等）、证据 `answerOrCode`、家长报告与报告区（保持正本）、onboarding 主题选择卡（其文案单独手改）。「能量」一词及能量条格数体系全课程保留。词典只含中文故事词，代码字符串天然不受影响。
+5. **存储正本**：session 里落盘的数据（作品卡 events、learnedOne、证据字段等）一律存正本文案，展示时再过 `t()`——换主题后旧数据照常换皮，报告链路读到的永远是正本。
+6. **视觉三变体**（逻辑不动，只换故事外形，均挂 `body[data-theme]`）：能量容器 = 电池电极盖 / 罐头盖 / 水晶尖顶（格数与数字逻辑不动）；门 = 金属滑门 / 木质园门+爪印 / 石门+符文（开关动画与真假灯逻辑不动）；`css/main.css` 每主题一个 accent 色 + 场景区淡背景色（轻量氛围，不做重绘）。
+7. **测试**：`js/tests/test-theme.js` 覆盖词典正确性、identity 保护、最长优先、robot 恒等、代码字符串负例。

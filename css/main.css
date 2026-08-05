@@ -821,6 +821,19 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
 body[data-theme="pet"] .brand .brand-dot { background: linear-gradient(135deg, #22c55e, #f59e0b); }
 body[data-theme="adventure"] .brand .brand-dot { background: linear-gradient(135deg, #f59e0b, #ef4444); }
 
+/* §13-3 主题氛围（轻量）：每主题一个 accent 色 + 页面/场景区淡背景色。
+ * 场景内的能量容器/门造型三变体在 visualizer.js 注入的样式里（同用 data-theme）。 */
+body[data-theme="pet"] {
+  --c-accent: #65a30d;            /* 草地绿 accent */
+  --c-bg: #f3f9ee;                /* 乐园淡草色底 */
+}
+body[data-theme="adventure"] {
+  --c-accent: #d97706;            /* 火把橙 accent */
+  --c-bg: #faf6ec;                /* 王国淡岩色底 */
+}
+body[data-theme="pet"] .scene-goal { background: #ecfccb; }
+body[data-theme="adventure"] .scene-goal { background: #fdeed3; }
+
 /* ------------------------------------------------------------ 响应式 ----- */
 /* §13-2 断点：≥1200 三栏 / 768–1199 两栏+状态抽屉 / <768 单栏上下堆叠 */
 @media (max-width: 1199px) {

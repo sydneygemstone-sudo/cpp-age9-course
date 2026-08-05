@@ -31,11 +31,19 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     x: '数字 x', y: '数字 y', n: '数字 n'
   };
 
+  // 皮肤名跨主题统一（CONTRACT §13-3 保护规则②）：不再使用「××机器人」写法
   var SKIN_CN = {
-    'robo-blue': '蓝色圆滚机器人',
-    'robo-orange': '橙色方块机器人',
-    'robo-dog': '绿色小狗机器人'
+    'robo-blue': '蓝色圆滚滚',
+    'robo-orange': '橙色方块侠',
+    'robo-dog': '绿色电力狗'
   };
+
+  /** 儿童可见旁白/无障碍文案过主题词典（Theme 缺失时恒等；robot 主题恒等） */
+  function themed(text) {
+    if (text === null || text === undefined) return text;
+    return (CppLab.Theme && typeof CppLab.Theme.t === 'function')
+      ? CppLab.Theme.t(String(text)) : String(text);
+  }
 
   var DEFAULT_CAPTION = {
     energy: '我是能量机器人！按「单步」，看我一格一格充能量～',
@@ -220,6 +228,29 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     '  background:var(--vz-card); border-radius:var(--vz-r);}',
     /* ---- 触屏：点按查释义的小热区（§13-2 触控目标） ---- */
     '@media (pointer:coarse){.viz-varname{display:inline-block; padding:8px 4px;}}',
+    /* ---- 主题三变体（CONTRACT §13-3）：只换故事容器外形，格数/开关/真假灯逻辑不动 ---- */
+    /* 能量容器：robot=电池电极盖（默认）；pet=罐头盖；adventure=水晶尖顶 */
+    'body[data-theme="pet"] .viz-battery{border-radius:10px 10px 16px 16px; background:#fffbeb;}',
+    'body[data-theme="pet"] .viz-battery::before{width:52px; height:10px; border-radius:999px;',
+    '  top:-8px; background:var(--vz-ink);}',
+    'body[data-theme="adventure"] .viz-battery{border-radius:6px 6px 16px 16px; background:#faf5ff;}',
+    'body[data-theme="adventure"] .viz-battery::before{width:0; height:0; background:transparent;',
+    '  border-radius:0; border-left:24px solid transparent; border-right:24px solid transparent;',
+    '  border-bottom:16px solid var(--vz-ink); top:-16px;}',
+    /* 门造型：robot=金属滑门（默认）；pet=木质园门+爪印；adventure=石门+符文 */
+    'body[data-theme="pet"] .viz-leaf{background:linear-gradient(180deg,#d6a35c,#a16207);}',
+    'body[data-theme="pet"] .viz-leaf-l{border-right-color:#854d0e;}',
+    'body[data-theme="pet"] .viz-leaf-r{border-left-color:#854d0e;}',
+    'body[data-theme="pet"] .viz-leaf::after{content:"🐾"; position:absolute; top:46%; left:50%;',
+    '  transform:translate(-50%,-50%); font-size:20px; opacity:.85;}',
+    'body[data-theme="adventure"] .viz-leaf{background:linear-gradient(180deg,#a8a29e,#57534e);}',
+    'body[data-theme="adventure"] .viz-leaf-l{border-right-color:#44403c;}',
+    'body[data-theme="adventure"] .viz-leaf-r{border-left-color:#44403c;}',
+    'body[data-theme="adventure"] .viz-leaf::after{content:"✶"; position:absolute; top:46%; left:50%;',
+    '  transform:translate(-50%,-50%); font-size:20px; color:#fbbf24; opacity:.9;}',
+    /* 场景区淡背景氛围（配合 css/main.css 的主题 accent） */
+    'body[data-theme="pet"] .viz-stage{background:linear-gradient(180deg,#f7fee7,#ecfccb);}',
+    'body[data-theme="adventure"] .viz-stage{background:linear-gradient(180deg,#fef9ec,#fdeed3);}',
     /* ---- no-anim：所有动画/过渡瞬时完成 ---- */
     'body.no-anim .cpplab-viz, body.no-anim .cpplab-viz *,',
     'body.no-anim .cpplab-viz *::before, body.no-anim .cpplab-viz *::after{',
@@ -268,7 +299,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
   function skinSvg(skin) {
     var ink = 'var(--c-ink,#1e293b)';
     var svgOpen = '<svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' +
-      (SKIN_CN[skin] || '机器人') + '">';
+      (SKIN_CN[skin] || themed('机器人伙伴')) + '">';
 
     if (skin === 'robo-orange') {
       // 橙色方块机器人
@@ -534,9 +565,9 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
 
       root.appendChild(stageEl);
 
-      // 旁白气泡
+      // 旁白气泡（默认旁白过主题词典）
       var captionEl = h(doc, 'div', 'viz-caption');
-      captionTextEl = h(doc, 'span', 'viz-caption-text', state.caption || '');
+      captionTextEl = h(doc, 'span', 'viz-caption-text', themed(state.caption || ''));
       captionEl.appendChild(captionTextEl);
       root.appendChild(captionEl);
 
@@ -573,7 +604,8 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     }
 
     function setCaption(text) {
-      if (captionTextEl && typeof text === 'string') captionTextEl.textContent = text;
+      // 旁白统一在此过主题词典：默认 caption、trace 描述、真实编译旁白都会经过这里
+      if (captionTextEl && typeof text === 'string') captionTextEl.textContent = themed(text);
     }
 
     /** 生成一个值的展示（布尔值带 真✓/假✗ 小标签，图标+文字并用）。 */
