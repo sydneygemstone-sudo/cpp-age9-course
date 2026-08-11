@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C++ 课 · 使用手册</title>
+<style>
+  :root{
+    --bg:#f5f7fb; --card:#fff; --ink:#18202c; --soft:#5c6879; --line:#dde4ee;
+    --brand:#2f6df6; --brand-bg:#e9f0ff;
+    --ok:#1a8f52; --ok-bg:#e4f6ec; --warn:#a96500; --warn-bg:#fff3de;
+    --bad:#c0392b; --bad-bg:#fdecea; --code-bg:#0e1622; --code-ink:#e9f0fb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e131b; --card:#171f2b; --ink:#e9f0fa; --soft:#a4b1c3; --line:#28323f;
+      --brand:#6ea0ff; --brand-bg:#1b2941;
+      --ok:#4ed08c; --ok-bg:#12301f; --warn:#ffc267; --warn-bg:#332510;
+      --bad:#ff8a7a; --bad-bg:#33191a; --code-bg:#080d15; --code-ink:#e9f0fb;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e131b; --card:#171f2b; --ink:#e9f0fa; --soft:#a4b1c3; --line:#28323f;
+    --brand:#6ea0ff; --brand-bg:#1b2941;
+    --ok:#4ed08c; --ok-bg:#12301f; --warn:#ffc267; --warn-bg:#332510;
+    --bad:#ff8a7a; --bad-bg:#33191a; --code-bg:#080d15; --code-ink:#e9f0fb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.75 -apple-system,"PingFang SC","Hiragino Sans GB",sans-serif;padding:26px 18px 80px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:30px;margin:0 0 4px}
+  .sub{color:var(--soft);margin:0 0 8px}
+  .toc{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 24px}
+  .toc a{background:var(--card);border:1px solid var(--line);border-radius:99px;
+    padding:7px 15px;text-decoration:none;color:var(--brand);font-size:15px;font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin:18px 0}
+  h2{font-size:21px;margin:0 0 14px;display:flex;align-items:center;gap:9px;scroll-margin-top:20px}
+  h3{font-size:16px;margin:20px 0 8px}
+  pre{background:var(--code-bg);color:var(--code-ink);padding:15px 17px;border-radius:11px;
+    overflow-x:auto;font:14px/1.7 ui-monospace,Menlo,monospace}
+  code{background:var(--brand-bg);color:var(--brand);padding:2px 6px;border-radius:5px;
+    font:.93em ui-monospace,Menlo,monospace}
+  pre code{background:none;color:inherit;padding:0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:15px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--brand-bg);color:var(--brand);font-weight:700}
+  .scroll{overflow-x:auto}
+  ul,ol{padding-left:1.25em;margin:10px 0}
+  li{margin:7px 0}
+  .box{border-radius:11px;padding:13px 16px;margin:13px 0}
+  .box.warn{background:var(--warn-bg)}
+  .box.ok{background:var(--ok-bg)}
+  .box.bad{background:var(--bad-bg)}
+  .box > b:first-child{display:block;margin-bottom:4px}
+  .link{font-size:18px;font-weight:700;color:var(--brand);word-break:break-all}
+  .step{background:var(--brand-bg);color:var(--brand);border-radius:99px;
+    width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;
+    font-size:14px;font-weight:700;margin-right:8px}
+  .muted{color:var(--soft);font-size:14px}
+  @media print{ body{padding:0} .toc{display:none} .card{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>C++ 课 · 使用手册</h1>
+<p class="sub">《九岁儿童 C++ 互动课程》· 老师用 · 最后更新 2026-08-12</p>
+
+<div class="toc">
+  <a href="#start">每次上课怎么开</a>
+  <a href="#during">课中操作</a>
+  <a href="#after">课后</a>
+  <a href="#trouble">出问题怎么办</a>
+  <a href="#where">东西都在哪</a>
+  <a href="#dev">维护与开发</a>
+</div>
+
+<div class="card">
+  <h2>📖 这是什么</h2>
+  <p style="margin-top:0">一套面向九岁孩子的<b>一对一、可视化 C++ 编程课</b>。孩子在浏览器里通过"先预测 → 再运行 → 再解释"的循环学编程；你在教师端看他的证据、调难度、生成家长报告；关键节点会把代码发给<b>真正的 C++ 编译器</b>跑一遍，证明学的是真东西。</p>
+  <p>一期做了三段完整内容：<b>试听/诊断课</b>、<b>第 1 课《机器人能量站》</b>（顺序执行、变量、赋值）、<b>第 2 课《智能舱门》</b>（条件判断）。第 3–12 课只有课程地图，还没做。</p>
+  <div class="box ok">
+    <b>✅ 现在的上课形态</b>
+    <b>你的 Mac 起服务器</b> → 学生用他自己的电脑连过来上课 → 你在自己 Mac 上开教师端看他、控制他的难度。两台机器要在<b>同一个 WiFi</b>。
+  </div>
+</div>
+
+<div class="card">
+  <h2 id="start">🚀 每次上课怎么开</h2>
+
+  <h3><span class="step">1</span>起服务器（你的 Mac，终端里跑）</h3>
+<pre>cd ~/cpp-course
+node tools/make-seed.js --nickname "孩子的昵称" &gt; server/seed.json
+node server/server.js --port 8099 --seed server/seed.json --fresh</pre>
+
+  <div class="box warn">
+    <b>⚠️ 关于 --fresh：开新课加，课中重启不加</b>
+    <b>开一堂新课 → 加 <code>--fresh</code></b>。不加的话，上一堂课（或课前彩排）留下的会话会被沿用，你新设的昵称和难度档会被忽略。<br>
+    <b>课上中途误关了终端、要重开 → 不要加</b>。去掉它才能接着上一轮，孩子的进度不丢。
+  </div>
+
+  <div class="box ok">
+    <b>✅ 启动后先看这几行，再把链接发给学生</b>
+<pre style="margin:8px 0 0">本次课堂使用的会话：
+  来源     种子文件 server/seed.json
+  昵称     孩子的昵称
+  档位     A
+  主题     robot</pre>
+    <b>昵称和档位对不上就别发链接</b>——多半是漏了 <code>--fresh</code>，按屏幕提示重来。
+  </div>
+
+  <h3><span class="step">2</span>把链接给学生</h3>
+  <p class="link">http://&lt;你的电脑IP&gt;:8099/index.html</p>
+  <p class="muted">服务器启动时会自己把地址打出来。<b>Mac 的 IP 可能变</b>，每次以启动时打印的为准。学生用 <b>Chrome</b> 打开（课件只保证 Chromium 内核，别用 Safari）。</p>
+
+  <h3><span class="step">3</span>你自己开教师端</h3>
+  <p class="link">http://localhost:8099/teacher.html</p>
+  <p class="muted">PIN <b>8888</b>（可在教师端里改，改完只存在你这台机器）。<b>这页别投屏给孩子</b>，上面有难度档和判定。</p>
+
+  <div class="box warn">
+    <b>⚠️ 第一次跑会弹一个系统框</b>
+    macOS 会问"是否允许 node 接受传入网络连接"，<b>点允许</b>，否则学生连不上。
+  </div>
+</div>
+
+<div class="card">
+  <h2 id="during">🎛 课中操作</h2>
+  <div class="scroll">
+  <table>
+    <tr><th style="width:150px">你想做什么</th><th>怎么做</th><th>注意</th></tr>
+    <tr>
+      <td><b>调难度档</b></td>
+      <td>教师端「控制区」→ 上调/下调一档</td>
+      <td><b>只在两个活动之间调</b>（等孩子点完「下一个任务！」）。孩子做到一半时调，屏幕会留着旧题面而引擎已换档，数字对不上</td>
+    </tr>
+    <tr>
+      <td><b>放最后一级提示</b></td>
+      <td>教师端对应活动 → 解锁 H5</td>
+      <td>H5 几乎等于给半个答案，孩子自己按「求提示」只能拿到前四级</td>
+    </tr>
+    <tr>
+      <td><b>随手记一笔</b></td>
+      <td>教师端「教师笔记」卡</td>
+      <td>课后写家长报告时用得上</td>
+    </tr>
+    <tr>
+      <td><b>改判定</b></td>
+      <td>教师端证据流 → 修订</td>
+      <td>系统自动评分最高到 2 级；第 3 级只能你手动给，依据是孩子能否解释和迁移</td>
+    </tr>
+    <tr>
+      <td><b>让孩子重做某一关</b></td>
+      <td>教师端 → 重置该活动</td>
+      <td>只重置那一关，不影响课程进度</td>
+    </tr>
+  </table>
+  </div>
+  <div class="box bad">
+    <b>🚫 课上不要碰的两个东西</b>
+    <b>1. 教师端的「删除会话」</b>——跨机模式下它是坏的：孩子那边会被清空，服务器上的旧数据却留着，之后孩子端上传会一直被拒。<br>
+    <b>2. 不要同时开两个儿童端</b>（比如学生开一个、你这边又开一个）。两个都会往服务器写整份会话，会互相把进度整包覆盖，孩子做过的活动可能直接消失。<b>儿童端全程只留学生那一个。</b>
+  </div>
+</div>
+
+<div class="card">
+  <h2 id="after">📦 课后</h2>
+  <ol>
+    <li><b>确认作品卡存了</b>——每课最后一个创作关要让孩子点「💾 保存我的作品卡」。第 2 课开场会读第 1 课的作品卡续写剧情，跳过了下节课会接不上。</li>
+    <li><b>补记解释质量</b>——最后一关"讲给机器人听"系统默认记"未打分"，等你在教师端判。</li>
+    <li><b>生成家长报告</b>——教师端「报告区」生成草稿 → 逐条编辑 → 确认 → 打印/导出。</li>
+    <li><b>导出会话 JSON</b>——换电脑或想留档前先导出。</li>
+  </ol>
+  <div class="box warn">
+    <b>⚠️ 家长报告的草稿要改了再发</b>
+    自动草稿有三处会让家长看糊涂：标题写的是「一、试听概况」「试听日期」（正课不是试听）；「本次学到的内容」整段写成「既有基础，无需现场教学」（意思正好说反）；引用的任务描述是从课件截断的半句话。<b>草稿只是帮你省打字，发出去前一定过一遍。</b><br>
+    报告正文本身不会出现难度档（E/S/A）和分数，这是产品红线——<b>你自己编辑时也别写</b>。
+  </div>
+  <div class="box ok">
+    <b>✅ 数据存在哪</b>
+    孩子的进度存在<b>他那台电脑的浏览器里</b>，同时同步一份到你 Mac 的 <code>~/cpp-course/server/data/</code>（每次上传都留快照，保最近 50 份）。不上传任何外部服务器，只记昵称，不采集真实姓名。
+  </div>
+</div>
+
+<div class="card">
+  <h2 id="trouble">🔌 出问题怎么办</h2>
+  <div class="scroll">
+  <table>
+    <tr><th style="width:170px">现象</th><th>实际发生了什么</th><th>你怎么做</th></tr>
+    <tr>
+      <td>学生打不开链接</td><td>连不上你的服务器</td>
+      <td>确认同一 WiFi；确认那个"允许 node 接受连接"点了允许；用启动时打印的那个 IP</td>
+    </tr>
+    <tr>
+      <td>学生看到的是要求填昵称、选世界的页面</td><td>课前种子没送到他那边</td>
+      <td>停掉服务器，加 <code>--fresh</code> 重跑第 1 步，让他刷新页面</td>
+    </tr>
+    <tr>
+      <td>服务器中途挂了</td><td><b>孩子照常上课</b>，进度存在他本机，一点不丢</td>
+      <td>不用慌。你的教师端会看不到实时状态；要调档就去他电脑上开一下 teacher.html（10 秒）。重启服务器时<b>不要</b>加 <code>--fresh</code></td>
+    </tr>
+    <tr>
+      <td>点「真实C++验证」显示「⚠️ 概念演示」</td><td>断网或公共编译服务不可用。<b>系统绝不会假装成功</b></td>
+      <td>照实告诉孩子，照常上课。作品卡照常保存，只是没盖章，下次联网补验证一次即可</td>
+    </tr>
+    <tr>
+      <td>孩子想重玩前面的关卡</td><td>整课完成后重进只会停在最后一关</td>
+      <td>课上别答应。真要重来：先「导出会话 JSON」留档，再关服务器、删掉 <code>~/cpp-course/server/data/</code></td>
+    </tr>
+    <tr>
+      <td>端口被占用（EADDRINUSE）</td><td>8099 被别的东西占了，或上一个服务器没退干净</td>
+      <td><code>lsof -nP -tiTCP:8099 -sTCP:LISTEN | xargs kill -9</code> 然后重跑</td>
+    </tr>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2 id="where">🗂 东西都在哪</h2>
+  <div class="scroll">
+  <table>
+    <tr><th style="width:230px">路径</th><th>是什么</th></tr>
+    <tr>
+      <td><code>~/cpp-course</code></td>
+      <td><b>权威仓库 + 上课用的部署</b>。带完整 git 历史。上课、改东西都在这里</td>
+    </tr>
+    <tr>
+      <td><code>&lt;备份机挂载点&gt;/…/courseware/<br>cpp-age9-course/active/source-tree</code></td>
+      <td>MSI 上的同一份（含 git）。L 树登记表指向这里</td>
+    </tr>
+    <tr>
+      <td><code>~/cpp-course-backups/</code></td>
+      <td>三个备份包：改动前的原件、删掉的 final-sprint 完整仓库（含 git）、删掉的三代 legacy</td>
+    </tr>
+    <tr>
+      <td><code>~/Desktop/C++课-使用手册.html</code></td>
+      <td>本文件</td>
+    </tr>
+    <tr>
+      <td><code>~/cpp-course/周六课前checklist.html</code></td>
+      <td>首课专用的课前检查单（含教案 8 处修订对照表）</td>
+    </tr>
+  </table>
+  </div>
+  <h3>课件目录里都有什么</h3>
+<pre>~/cpp-course/
+├── index.html        儿童端入口
+├── teacher.html      教师端入口（PIN 8888）
+├── setup.html        给学生自助装开发环境的 14 页 slides
+├── server/           上课用的服务器（server.js）＋ 会话数据
+├── tools/            make-seed.js（生成课前种子）
+├── qa/               自动化闭环 QA（CDP 驱动真实浏览器）
+├── docs/             教案、教师手册、方案定稿、技术契约
+└── js/               课件本体（引擎 / 内容 / 界面 / 测试）</pre>
+</div>
+
+<div class="card">
+  <h2 id="dev">🔧 维护与开发</h2>
+
+  <h3>改完东西之后</h3>
+<pre># 1. 跑测试（7 套必须全绿）
+cd ~/cpp-course
+for f in js/tests/test-*.js; do node "$f"; done
+
+# 2. 跑闭环 QA（真实浏览器点完第 1 课 8 关，约 2 分钟）
+node server/server.js --port 8099 --seed server/seed.json --fresh &amp;
+node qa/cdp-lesson1.mjs
+
+# 3. 提交
+git add -A &amp;&amp; git commit -m "说明改了什么"</pre>
+
+  <h3>同步到 MSI</h3>
+<pre>rsync -a --delete --no-perms --no-owner --no-group \
+  --exclude 'server/data' --exclude 'server/seed.json' --exclude 'qa/shots' \
+  ~/cpp-course/ \
+  "&lt;备份机挂载点&gt;/…/cpp-age9-course/active/source-tree/"
+
+# 必做：清掉 macOS 写到 SMB 上的元数据文件，否则会污染 .git
+find "&lt;备份机挂载点&gt;/…/active/source-tree" -name "._*" -type f -delete</pre>
+  <div class="box warn">
+    <b>⚠️ 这一步的坑</b>
+    往 SMB 同步会产生几百个 <code>._</code> 开头的文件，其中 <code>._main</code>、<code>._tags</code> 会跑进 <code>.git/refs</code> 里，让 git 报 <code>badRefName</code>。<b>每次同步完都要跑上面那条 find 删除</b>。
+  </div>
+
+  <h3>MSI 上跑 codex worker</h3>
+<pre>ssh &lt;用户名&gt;@&lt;备份机的 tailscale 地址&gt;</pre>
+  <p class="muted">这台备份机<b>局域网 IP 的 22 端口不通、445 通</b>——所以 SMB 挂载能用不代表 ssh 能用同一个地址，要走 tailscale。地址用 <code>tailscale status</code> 查。具体地址见本机桌面上的手册副本。</p>
+</div>
+
+<div class="card">
+  <h2>📌 还没做的事</h2>
+  <ul>
+    <li><b>教师手册（<code>docs/教师手册.md</code>）还是同机时代写的</b>——里面"双击 index.html""教师端开第二个窗口""在教师端创建会话"这些说法在现在的跨机模式下都不成立。核对出 31 项不一致，等实际上过一次课再改更准。</li>
+    <li><b>教师端「删除会话」在跨机下是坏的</b>，暂时绕开（见上面红框）。</li>
+    <li><b>家长报告生成器没改</b>，只是把要改的地方写进了说明。</li>
+    <li><b>第 3–12 课只有课程地图</b>，没有实际内容。</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>
