@@ -1,0 +1,7 @@
+# 运行时数据：每堂课的会话快照，不进版本库
+server/data/
+# 课前生成的会话种子，含孩子昵称，按堂生成
+server/seed.json
+# QA 截图
+qa/shots/
+qa/.chrome*
