@@ -202,6 +202,10 @@ var CppLab = (typeof window !== 'undefined')
       S.root.appendChild(el('div', 'view view-narrow card', '实验室零件没装齐（存储模块缺失），请找老师检查脚本加载。'));
       return;
     }
+    if (CppLab.Sync && typeof CppLab.Sync.start === 'function' &&
+        typeof window !== 'undefined' && window.location && /^https?:$/.test(window.location.protocol)) {
+      CppLab.Sync.start({ role: 'student', pollMs: 2000 });
+    }
     var s = session();
     applyAnimSetting(s.settings && s.settings.anim !== false);
     applyTheme(s.theme);
@@ -3368,9 +3372,29 @@ var CppLab = (typeof window !== 'undefined')
    * 反馈与完成
    * ==================================================================== */
 
+  /**
+   * 当前活动已完成时该给的"往下走"按钮（最后一关是领徽章）。
+   * 抽出来是因为反馈区每次渲染都会整块清空：活动完成后，任何后续反馈
+   * （最典型的是「🧪 真实C++验证」的结果）如果不带这个按钮，就会把
+   * 完成时给出的「下一个任务！」直接擦掉，孩子当场卡在这一关走不了。
+   * 教案在活动 2、4、5、6、7 都让老师"完成后再点真实验证"，所以这条
+   * 路径是必经的，不是边角情况。
+   */
+  function nextStepActions(lessonDone) {
+    if (!S.engine || !S.ui || !S.ui.completed) return [];
+    var isLast = S.engine.currentIndex + 1 >= S.engine.getActivities().length;
+    return [
+      (lessonDone || isLast)
+        ? { label: '🏅 去领我的徽章！', primary: true, onClick: function () { renderLessonEnd(); } }
+        : { label: '下一个任务！', primary: true, onClick: function () { gotoNextActivity(); } }
+    ];
+  }
+
   function showFeedback(kind, title, text, actions) {
     var host = document.getElementById('feedback-area');
     if (!host) return;
+    // 已完成的活动，反馈里必须始终留着"往下走"的出口（见 nextStepActions 注释）
+    if (!actions || !actions.length) actions = nextStepActions(false);
     clearNode(host);
     var cls = kind === 'ok' ? 'fb-ok' : (kind === 'err' ? 'fb-err' : 'fb-warn');
     var card = el('div', 'feedback-card ' + cls);
@@ -3424,12 +3448,7 @@ var CppLab = (typeof window !== 'undefined')
     refreshDots();
 
     var lessonDone = !!(res && res.lessonDone);
-    var isLast = S.engine.currentIndex + 1 >= S.engine.getActivities().length;
-    var doneActions = [
-      (lessonDone || isLast)
-        ? { label: '🏅 去领我的徽章！', primary: true, onClick: function () { renderLessonEnd(); } }
-        : { label: '下一个任务！', primary: true, onClick: function () { gotoNextActivity(); } }
-    ];
+    var doneActions = nextStepActions(lessonDone);
 
     // 组合型活动：主交互完成后追加渲染 followUp 第二段轻交互
     var fu = ui.variant && ui.variant.interaction && ui.variant.interaction.followUp;

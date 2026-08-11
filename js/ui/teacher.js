@@ -241,6 +241,48 @@ var CppLab = (typeof window !== 'undefined')
     setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 2200);
   }
 
+  /** HTTP(S) 下教师写入先发 op；发送失败时静默执行原本的本地写入。 */
+  function remoteSyncActive() {
+    if (!CppLab.Sync || typeof CppLab.Sync.status !== 'function' ||
+        typeof CppLab.Sync.pushOp !== 'function') return false;
+    if (!window.location || !/^https?:$/.test(window.location.protocol)) return false;
+    var net = CppLab.Sync.status();
+    return net.role === 'teacher' && (net.connected || !net.lastError);
+  }
+
+  function teacherWrite(type, payload, localWrite, onDone, onError) {
+    if (!remoteSyncActive()) {
+      localWrite();
+      if (onDone) onDone(false);
+      return;
+    }
+    CppLab.Sync.pushOp(type, payload).then(function () {
+      try { if (onDone) onDone(true); }
+      catch (err) { if (onError) onError(err); }
+    }, function () {
+      /* 降级红线：网络失败不提示技术错误，直接恢复原 localStorage 流程。 */
+      try {
+        localWrite();
+        if (onDone) onDone(false);
+      } catch (err) {
+        if (onError) onError(err);
+      }
+    });
+  }
+
+  /** 调用会写 Storage 的报告 API，但在联网教师端只取返回值、不落本机会话。 */
+  function withoutStorageWrite(fn) {
+    var originalUpdate = CppLab.Storage.update;
+    var temp = deepClone(CppLab.Storage.load());
+    CppLab.Storage.update = function (mutator) {
+      var result = mutator(temp);
+      temp = (result && typeof result === 'object') ? result : temp;
+      return temp;
+    };
+    try { return fn(); }
+    finally { CppLab.Storage.update = originalUpdate; }
+  }
+
   /* ------------------------------------------------------------------ *
    * 会话读取与课程/活动定位
    * ------------------------------------------------------------------ */
@@ -436,16 +478,20 @@ var CppLab = (typeof window !== 'undefined')
   /** 写入支架切换（含「保持」的覆盖留痕），结构与引擎 setScaffold 完全一致 */
   function applyScaffold(to, reason) {
     var from = (state.session && state.session.path) || 'S';
-    CppLab.Storage.update(function (s) {
-      s.scaffoldHistory = s.scaffoldHistory || [];
-      s.scaffoldHistory.push({
-        at: new Date().toISOString(),
-        from: from, to: to, by: 'teacher', reason: reason || ''
+    var at = new Date().toISOString();
+    teacherWrite('setTier', { path: to, from: from, reason: reason || '', at: at }, function () {
+      CppLab.Storage.update(function (s) {
+        s.scaffoldHistory = s.scaffoldHistory || [];
+        s.scaffoldHistory.push({
+          at: at,
+          from: from, to: to, by: 'teacher', reason: reason || ''
+        });
+        s.path = to;
       });
-      s.path = to;
+    }, function (remote) {
+      if (!remote) refresh();
+      toast(from === to ? '已记录：保持 ' + PATH_LABEL[to] : '支架已切换：' + from + ' → ' + to + '（几秒内自动同步孩子端）');
     });
-    refresh();
-    toast(from === to ? '已记录：保持 ' + PATH_LABEL[to] : '支架已切换：' + from + ' → ' + to + '（几秒内自动同步孩子端）');
   }
 
   /* ------------------------------------------------------------------ *
@@ -459,13 +505,23 @@ var CppLab = (typeof window !== 'undefined')
     var path = s.path || 'S';
     var storageWarn = state.storageOk ? '' :
       '<span class="badge badge-err">浏览器存储不可用：无法与儿童端同步</span>';
+    var syncLine = '<span class="topbar-sub"><span class="sync-dot"></span>已同步 ' +
+      fmtClock(state.lastSyncAt || new Date()) + '（每 2 秒自动检查）</span>';
+    if (CppLab.Sync && typeof CppLab.Sync.status === 'function') {
+      var net = CppLab.Sync.status();
+      if (net.role === 'teacher') {
+        syncLine = net.connected
+          ? '<span class="topbar-sub"><span class="sync-dot"></span>局域网已连接 ' + fmtTime(net.lastSyncAt) + '</span>'
+          : '<span class="topbar-sub"><span class="sync-dot" style="background:var(--c-accent);"></span>本机模式（局域网连接中断）</span>';
+      }
+    }
     info.innerHTML =
       '<span class="topbar-title">教师控制台</span>' +
       '<span class="topbar-sub">学员：' + nick + '</span>' +
       '<span class="badge badge-path" title="当前支架档（教师内部信息，儿童端不显示）">' + esc(PATH_LABEL[path] || path) + '</span>' +
       storageWarn +
       '<span class="top-spacer"></span>' +
-      '<span class="topbar-sub"><span class="sync-dot"></span>已同步 ' + fmtClock(state.lastSyncAt || new Date()) + '（每 2 秒自动检查）</span>' +
+      syncLine +
       '<a class="btn btn-sm" href="index.html" target="_blank" title="在新标签页打开孩子使用的课程页面">打开儿童端</a>';
 
     /* 课程切换 */
@@ -590,7 +646,7 @@ var CppLab = (typeof window !== 'undefined')
       ' title="切换到支撑更多的一档。与系统建议不一致时需要填写原因。">下调一档</button>' +
       '<button class="btn" id="sc-keep" title="明确记录一次「保持当前档」的决定（写入调档历史）。">保持当前档</button>' +
       '</div>' +
-      '<div class="ctl-tip">调档会自动同步到孩子端（几秒内）：孩子当前还没开始的活动立即换用新档变体，已经开始的活动做完后从下一个活动生效；已完成的记录不受影响。每次调档（含覆盖建议）都会连同原因写入历史。</div>' +
+      '<div class="ctl-tip"><b>请在两个活动之间调档</b>（等孩子点完「下一个任务！」再调）。孩子<b>还没开始</b>的活动会立即换用新档变体；但如果他<b>已经在做</b>这个活动，引擎会当场切到新档的程序，而屏幕上还留着旧档的题面和代码——你会照着旧题讲，数字却对不上。已完成的记录不受影响。每次调档（含覆盖建议）都会连同原因写入历史。</div>' +
       '<hr class="sep">' + histHtml +
       '</div>';
 
@@ -718,19 +774,24 @@ var CppLab = (typeof window !== 'undefined')
         if (!text) { toast('先写点内容再保存'); return; }
         var noteLesson = state.lessonId;
         var noteAct = act ? act.id : null;
-        CppLab.Storage.update(function (ss) {
-          ss.teacherNotes = ss.teacherNotes || [];
-          ss.teacherNotes.push({
-            id: 'tn-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
-            at: new Date().toISOString(),
-            lessonId: noteLesson,
-            activityId: noteAct,
-            text: text
+        var note = {
+          id: 'tn-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+          at: new Date().toISOString(),
+          lessonId: noteLesson,
+          activityId: noteAct,
+          text: text
+        };
+        teacherWrite('teacherNote', note, function () {
+          CppLab.Storage.update(function (ss) {
+            ss.teacherNotes = ss.teacherNotes || [];
+            ss.teacherNotes.push(note);
           });
+        }, function (remote) {
+          state.noteDraft = '';
+          if (tnoteTa) tnoteTa.value = '';
+          if (!remote) refresh();
+          toast('教师笔记已保存');
         });
-        state.noteDraft = '';
-        refresh();
-        toast('教师笔记已保存');
       });
     }
     var scUp = $('sc-up'), scDown = $('sc-down'), scKeep = $('sc-keep');
@@ -744,9 +805,12 @@ var CppLab = (typeof window !== 'undefined')
           toast('H5 需要先在控制区解锁');
           return;
         }
-        CppLab.Hints.markUsedByTeacher(act.id, lv);
-        refresh();
-        toast('已记录代读 ' + lv);
+        teacherWrite('markHintUsed', { activityId: act.id, level: lv, at: new Date().toISOString() }, function () {
+          CppLab.Hints.markUsedByTeacher(act.id, lv);
+        }, function (remote) {
+          if (!remote) refresh();
+          toast('已记录代读 ' + lv);
+        });
       });
     });
   }
@@ -908,9 +972,15 @@ var CppLab = (typeof window !== 'undefined')
           '标记为 N', false,
           function () {
             try {
-              CppLab.Evidence.setTeacherOverride(id, { outcome: 'N', confidence: 'low' });
-              refresh();
-              toast('已标记为 N 未观察');
+              var patch = { outcome: 'N', confidence: 'low' };
+              teacherWrite('evidenceRevise', {
+                evidenceId: id, patch: patch, at: new Date().toISOString()
+              }, function () {
+                CppLab.Evidence.setTeacherOverride(id, patch);
+              }, function (remote) {
+                if (!remote) refresh();
+                toast('已标记为 N 未观察');
+              }, function (err) { toast('操作失败：' + err.message); });
             } catch (err) { toast('操作失败：' + err.message); }
           });
       });
@@ -934,10 +1004,15 @@ var CppLab = (typeof window !== 'undefined')
           teacherNote: panel.querySelector('#evi-note').value.trim()
         };
         try {
-          CppLab.Evidence.setTeacherOverride(id, patch);
-          state.editingEvidenceId = null;
-          refresh();
-          toast('修订已保存（原值留档）');
+          teacherWrite('evidenceRevise', {
+            evidenceId: id, patch: patch, at: new Date().toISOString()
+          }, function () {
+            CppLab.Evidence.setTeacherOverride(id, patch);
+          }, function (remote) {
+            state.editingEvidenceId = null;
+            if (!remote) refresh();
+            toast('修订已保存（原值留档）');
+          }, function (err) { toast('保存失败：' + err.message); });
         } catch (err) { toast('保存失败：' + err.message); }
       });
     }
@@ -1012,15 +1087,18 @@ var CppLab = (typeof window !== 'undefined')
           '确认重置', true,
           function () {
             var lessonId = state.lessonId;
-            CppLab.Storage.update(function (s) {
-              var lesson = (s.lessons || {})[lessonId];
-              if (lesson && lesson.activityStates && lesson.activityStates[act.id]) {
-                delete lesson.activityStates[act.id];
-                lesson.completed = false;
-              }
+            teacherWrite('resetActivity', { lessonId: lessonId, activityId: act.id }, function () {
+              CppLab.Storage.update(function (s) {
+                var lesson = (s.lessons || {})[lessonId];
+                if (lesson && lesson.activityStates && lesson.activityStates[act.id]) {
+                  delete lesson.activityStates[act.id];
+                  lesson.completed = false;
+                }
+              });
+            }, function (remote) {
+              if (!remote) refresh();
+              toast('活动已重置，孩子端刷新后可重做');
             });
-            refresh();
-            toast('活动已重置，孩子端刷新后可重做');
           });
       });
     }
@@ -1029,10 +1107,13 @@ var CppLab = (typeof window !== 'undefined')
       h5Btn.addEventListener('click', function () {
         if (!actId) return;
         var next = !CppLab.Hints.isH5Unlocked(actId);
-        if (next) CppLab.Hints.unlockH5(actId); else CppLab.Hints.relockH5(actId);
-        setTeacherControl(function (tc) { tc.h5Unlocked[actId] = next; });
-        refresh();
-        toast(next ? '本活动 H5 已解锁' : '本活动 H5 已重新锁定');
+        teacherWrite(next ? 'unlockH5' : 'relockH5', { activityId: actId }, function () {
+          if (next) CppLab.Hints.unlockH5(actId); else CppLab.Hints.relockH5(actId);
+          setTeacherControl(function (tc) { tc.h5Unlocked[actId] = next; });
+        }, function (remote) {
+          if (!remote) refresh();
+          toast(next ? '本活动 H5 已解锁' : '本活动 H5 已重新锁定');
+        });
       });
     }
     var pinBtn = $('ctl-pin');
@@ -1247,26 +1328,47 @@ var CppLab = (typeof window !== 'undefined')
           '</b> 记录为第 2 课后确认点的确认结果。之后仍可调整（第 6 课还有「第 2 次路径复核」），但建议同步告知家长。</p>',
           '确认路径', false,
           function () {
-            CppLab.Storage.update(function (ss) {
-              ss.lessons = ss.lessons || {};
-              ss.lessons.lesson2 = ss.lessons.lesson2 || { completed: false, customRule: null, activityStates: {}, pathConfirmed: false };
-              ss.lessons.lesson2.pathConfirmed = true;
+            teacherWrite('confirmPath', { at: new Date().toISOString() }, function () {
+              CppLab.Storage.update(function (ss) {
+                ss.lessons = ss.lessons || {};
+                ss.lessons.lesson2 = ss.lessons.lesson2 || { completed: false, customRule: null, activityStates: {}, pathConfirmed: false };
+                ss.lessons.lesson2.pathConfirmed = true;
+              });
+            }, function (remote) {
+              if (!remote) refresh();
+              toast('路径确认（第 2 课后）已记录');
             });
-            refresh();
-            toast('路径确认（第 2 课后）已记录');
           });
       });
     }
     $('rp-gen').addEventListener('click', function () {
       try {
-        var draft = CppLab.Report.parentReportDraft();
-        state.draft = deepClone(draft);
-        state.draftDirty = false;
-        refresh();
-        renderDraftPanel();
-        toast('草稿已生成，请逐条检查修改');
-        var dp = $('draft-panel');
-        if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (remoteSyncActive()) {
+          var remoteDraft = withoutStorageWrite(function () { return CppLab.Report.parentReportDraft(); });
+          teacherWrite('saveReportDraft', { draft: remoteDraft }, function () {
+            CppLab.Storage.update(function (ss) {
+              ss.reports = ss.reports || { draft: null, confirmed: null };
+              ss.reports.draft = deepClone(remoteDraft);
+            });
+          }, function (remote) {
+            state.draft = deepClone(remoteDraft);
+            state.draftDirty = false;
+            if (!remote) refresh();
+            renderDraftPanel();
+            toast('草稿已生成，请逐条检查修改');
+            var remoteDp = $('draft-panel');
+            if (remoteDp) remoteDp.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        } else {
+          var draft = CppLab.Report.parentReportDraft();
+          state.draft = deepClone(draft);
+          state.draftDirty = false;
+          refresh();
+          renderDraftPanel();
+          toast('草稿已生成，请逐条检查修改');
+          var dp = $('draft-panel');
+          if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       } catch (e) {
         openModal('草稿生成失败', '<p style="font-size:13px;">' + esc(e.message) + '</p>');
       }
@@ -1363,14 +1465,17 @@ var CppLab = (typeof window !== 'undefined')
     });
     $('draft-save').addEventListener('click', function () {
       var snapshot = deepClone(state.draft);
-      CppLab.Storage.update(function (s) {
-        s.reports = s.reports || { draft: null, confirmed: null };
-        s.reports.draft = snapshot;
+      teacherWrite('saveReportDraft', { draft: snapshot }, function () {
+        CppLab.Storage.update(function (s) {
+          s.reports = s.reports || { draft: null, confirmed: null };
+          s.reports.draft = snapshot;
+        });
+      }, function (remote) {
+        state.draftDirty = false;
+        if (!remote) refresh();
+        renderDraftPanel();
+        toast('草稿已保存');
       });
-      state.draftDirty = false;
-      refresh();
-      renderDraftPanel();
-      toast('草稿已保存');
     });
     $('draft-confirm').addEventListener('click', function () {
       askConfirm('确认为最终家长版',
@@ -1379,12 +1484,31 @@ var CppLab = (typeof window !== 'undefined')
         '确认报告', false,
         function () {
           try {
-            CppLab.Report.confirmReport(state.draft);
-            state.draft = null;
-            state.draftDirty = false;
-            refresh();
-            renderDraftPanel();
-            toast('报告已确认，可以打印了');
+            if (remoteSyncActive()) {
+              var confirmed = withoutStorageWrite(function () { return CppLab.Report.confirmReport(state.draft); });
+              teacherWrite('confirmReport', { report: confirmed }, function () {
+                CppLab.Storage.update(function (ss) {
+                  ss.reports = ss.reports || { draft: null, confirmed: null };
+                  ss.reports.confirmed = deepClone(confirmed);
+                });
+              }, function (remote) {
+                state.draft = null;
+                state.draftDirty = false;
+                if (!remote) refresh();
+                renderDraftPanel();
+                toast('报告已确认，可以打印了');
+              }, function (err) {
+                openModal('确认被拦截', '<p style="font-size:13px;">' + esc(err.message) + '</p>' +
+                  '<p class="kv">请修改相应条目后重试。</p>');
+              });
+            } else {
+              CppLab.Report.confirmReport(state.draft);
+              state.draft = null;
+              state.draftDirty = false;
+              refresh();
+              renderDraftPanel();
+              toast('报告已确认，可以打印了');
+            }
           } catch (e) {
             openModal('确认被拦截', '<p style="font-size:13px;">' + esc(e.message) + '</p>' +
               '<p class="kv">请修改相应条目后重试。</p>');
@@ -1455,14 +1579,17 @@ var CppLab = (typeof window !== 'undefined')
                 var v = b.querySelector('#del-confirm-input').value.trim();
                 if (v !== '删除') { b.querySelector('#del-err').textContent = '输入不匹配，请输入「删除」。'; return; }
                 close();
-                CppLab.Storage.clear();
-                state.draft = null;
-                state.draftDirty = false;
-                state.editingEvidenceId = null;
-                state.lessonId = null;
-                refresh();
-                renderDraftPanel();
-                toast('会话数据已删除，已新建空白会话');
+                teacherWrite('resetSession', {}, function () {
+                  CppLab.Storage.clear();
+                }, function (remote) {
+                  state.draft = null;
+                  state.draftDirty = false;
+                  state.editingEvidenceId = null;
+                  state.lessonId = null;
+                  if (remote) renderFreshEmpty(); else refresh();
+                  renderDraftPanel();
+                  toast('会话数据已删除，已新建空白会话');
+                });
               }
             }
           ]);
@@ -1525,6 +1652,8 @@ var CppLab = (typeof window !== 'undefined')
     setInterval(function () {
       if (!state.authed) return;
       if (readRaw() !== state.rawSnapshot) refresh();
+      else if (CppLab.Sync && typeof CppLab.Sync.status === 'function' &&
+               CppLab.Sync.status().role === 'teacher') renderTopbar();
     }, 2000);
   }
 
@@ -1590,6 +1719,10 @@ var CppLab = (typeof window !== 'undefined')
       return;
     }
     state.storageOk = checkStorage();
+    if (CppLab.Sync && typeof CppLab.Sync.start === 'function' &&
+        window.location && /^https?:$/.test(window.location.protocol)) {
+      CppLab.Sync.start({ role: 'teacher', pollMs: 2000 });
+    }
     initPinGate();
     startSyncLoop();
   }

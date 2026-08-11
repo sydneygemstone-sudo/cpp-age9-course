@@ -420,7 +420,11 @@ var CppLab = (typeof window !== 'undefined')
       code: source,
       compiler: WANDBOX_COMPILER,
       options: '',
-      'compiler-option-raw': COMPILE_FLAGS,
+      // Wandbox 的 compiler-option-raw 以换行分隔多个参数；整串带空格传过去会被
+      // 当成单个参数，返回 "unrecognized command-line option '-std=c++17 -Wall'"。
+      // 该错误含 "error:"，会被下面的映射误判成学生程序的真实编译错误
+      // （2026-08-11 实测复现），因此这里必须逐个参数换行分隔。
+      'compiler-option-raw': COMPILE_FLAGS.split(/\s+/).join('\n'),
       stdin: stdin || ''
     };
     return fetchJSON(fetchFn, WANDBOX_ENDPOINT, body).then(function (d) {

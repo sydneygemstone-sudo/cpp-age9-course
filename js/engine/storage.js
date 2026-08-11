@@ -117,7 +117,22 @@ var CppLab = (typeof window !== 'undefined')
           // 数据损坏：不吞掉孩子进度以外的选择——损坏即重建（无法恢复的 JSON 无进度可保）
         }
       }
-      var fresh = defaultSession();
+      // 本机还没有会话时，优先采纳服务器同步注入的种子（window.__CPPLAB_SEED__）。
+      // 为什么需要它：localStorage 按「机器 × 浏览器 × origin」隔离，学生在自己的
+      // 电脑上通过 http://<老师机器>:<port> 打开时，老师那边试听课的存档一个字节
+      // 也带不过来。种子由 server.js 在返回 HTML 时同步注入，避免"页面已经渲染完
+      // 才异步拉回档位"的时序问题（否则孩子会被要求重填昵称、重选世界，档位也会
+      // 掉回默认 S）。仅在本机确实无会话时生效，绝不覆盖已有进度。
+      var seeded = null;
+      try {
+        if (typeof window !== 'undefined' && window.__CPPLAB_SEED__ &&
+            typeof window.__CPPLAB_SEED__ === 'object') {
+          seeded = ensureShape(JSON.parse(JSON.stringify(window.__CPPLAB_SEED__)));
+        }
+      } catch (e) {
+        seeded = null;
+      }
+      var fresh = seeded || defaultSession();
       Storage.save(fresh);
       return fresh;
     },

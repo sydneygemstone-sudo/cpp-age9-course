@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的电脑变成编程实验室</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --card:#ffffff; --ink:#1c2431; --ink-soft:#5b6779;
+    --line:#dbe3ee; --brand:#2f6df6; --brand-soft:#e8f0ff;
+    --ok:#1f9254; --ok-soft:#e3f6ec; --warn:#b26a00; --warn-soft:#fff4e0;
+    --code-bg:#101725; --code-ink:#e8eefc;
+  }
+  :root:not([data-theme="light"]){}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f141c; --card:#182130; --ink:#eaf0f9; --ink-soft:#a9b6c8;
+      --line:#2a3648; --brand:#6ea0ff; --brand-soft:#1d2b47;
+      --ok:#4bd08b; --ok-soft:#14301f; --warn:#ffc061; --warn-soft:#33260f;
+      --code-bg:#0a0f18; --code-ink:#e8eefc;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f141c; --card:#182130; --ink:#eaf0f9; --ink-soft:#a9b6c8;
+    --line:#2a3648; --brand:#6ea0ff; --brand-soft:#1d2b47;
+    --ok:#4bd08b; --ok-soft:#14301f; --warn:#ffc061; --warn-soft:#33260f;
+    --code-bg:#0a0f18; --code-ink:#e8eefc;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:18px; line-height:1.7;
+    min-height:100vh; display:flex; flex-direction:column;
+  }
+  header{
+    padding:14px 20px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--card);
+  }
+  .brand{font-weight:700; font-size:17px}
+  .progress{flex:1; min-width:160px; height:10px; background:var(--line); border-radius:99px; overflow:hidden}
+  .progress i{display:block; height:100%; background:var(--brand); width:0; transition:width .25s}
+  .counter{font-variant-numeric:tabular-nums; color:var(--ink-soft); font-size:15px}
+  main{flex:1; display:flex; align-items:flex-start; justify-content:center; padding:26px 18px 120px}
+  .slide{
+    width:min(860px,100%); background:var(--card); border:1px solid var(--line);
+    border-radius:20px; padding:34px 34px 30px; display:none;
+  }
+  .slide.on{display:block}
+  .step-tag{
+    display:inline-block; background:var(--brand-soft); color:var(--brand);
+    font-weight:700; font-size:15px; padding:4px 14px; border-radius:99px; margin-bottom:14px;
+  }
+  h1{font-size:32px; line-height:1.35; margin:0 0 8px}
+  h2{font-size:22px; margin:26px 0 10px}
+  .lead{font-size:20px; color:var(--ink-soft); margin:0 0 18px}
+  ol,ul{padding-left:1.3em; margin:12px 0}
+  li{margin:9px 0}
+  code,kbd{
+    background:var(--brand-soft); color:var(--brand); padding:2px 7px;
+    border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.95em;
+  }
+  pre{
+    background:var(--code-bg); color:var(--code-ink); padding:16px 18px; border-radius:12px;
+    overflow-x:auto; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:16px; line-height:1.6;
+  }
+  pre b{color:#7fd1a0}
+  .box{border-radius:14px; padding:16px 18px; margin:18px 0; border:1px solid var(--line)}
+  .box.check{background:var(--ok-soft); border-color:transparent}
+  .box.warn{background:var(--warn-soft); border-color:transparent}
+  .box .box-t{font-weight:700; margin-bottom:6px}
+  .box.check .box-t{color:var(--ok)}
+  .box.warn .box-t{color:var(--warn)}
+  .en{
+    margin-top:22px; border-top:1px dashed var(--line); padding-top:14px;
+    display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+  }
+  .en-label{font-size:14px; color:var(--ink-soft); font-weight:700}
+  .word{
+    background:var(--brand-soft); color:var(--brand); border-radius:10px;
+    padding:6px 12px; font-size:15px;
+  }
+  .word b{font-family:ui-monospace,Menlo,monospace}
+  .ask{
+    margin-top:20px; background:var(--brand-soft); border-radius:14px; padding:14px 18px;
+    font-size:17px;
+  }
+  nav{
+    position:fixed; left:0; right:0; bottom:0; background:var(--card);
+    border-top:1px solid var(--line); padding:14px 20px;
+    display:flex; gap:12px; align-items:center; justify-content:center;
+  }
+  button{
+    font:inherit; font-weight:700; cursor:pointer; border-radius:12px;
+    padding:12px 26px; border:1px solid var(--line); background:var(--card); color:var(--ink);
+  }
+  button.primary{background:var(--brand); color:#fff; border-color:transparent}
+  button:disabled{opacity:.4; cursor:not-allowed}
+  .dots{display:flex; gap:6px; flex-wrap:wrap; max-width:340px; justify-content:center}
+  .dot{width:10px; height:10px; border-radius:99px; background:var(--line); border:0; padding:0}
+  .dot.on{background:var(--brand)}
+  .dot.done{background:var(--ok)}
+  @media (max-width:640px){
+    body{font-size:17px}
+    .slide{padding:24px 20px}
+    h1{font-size:26px}
+    .lead{font-size:18px}
+    nav{padding:10px 12px}
+    button{padding:11px 18px}
+    .dots{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="brand">🛠 我的电脑变成编程实验室</span>
+  <span class="progress"><i id="bar"></i></span>
+  <span class="counter"><span id="cur">1</span> / <span id="tot">14</span></span>
+</header>
+
+<main>
+
+<section class="slide on">
+  <span class="step-tag">出发</span>
+  <h1>今天，你要把自己的电脑<br>改造成一间编程实验室 🚀</h1>
+  <p class="lead">全部步骤你自己就能完成。老师不用碰你的电脑。</p>
+  <h2>你要装两样东西</h2>
+  <ol>
+    <li><b>一个写代码的本子</b> —— 叫 VS Code。它长得像记事本，但会帮你把代码涂上颜色、还会提醒你写错了。</li>
+    <li><b>一个翻译官</b> —— 叫编译器。你写的是英文单词，电脑只懂 0 和 1，翻译官负责把你的代码翻译给电脑听。</li>
+  </ol>
+  <div class="box check">
+    <div class="box-t">✅ 慢慢来，不着急</div>
+    这份指南一共 14 页，每页只做一件事。做完一页，点右下角「下一步 →」。中间要是卡住了，把那一页拍给老师看就行。
+  </div>
+  <div class="ask">💡 电脑上会弹出很多英文，别怕——你只要认识几个词就够用了。每页最下面我都会教你 2、3 个。</div>
+  <div class="en">
+    <span class="en-label">今天的第一个词</span>
+    <span class="word"><b>code</b> ＝ 代码</span>
+    <span class="word"><b>install</b> ＝ 安装</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 1 步</span>
+  <h1>先认识一个工具：访达</h1>
+  <p class="lead">访达（Finder）就是管理电脑里所有文件的地方，像一个大柜子。</p>
+  <ol>
+    <li>看屏幕最下面那排图标（叫「程序坞」）。</li>
+    <li>最左边有一个<b>蓝色的、笑着的方脸</b>，那就是访达。</li>
+    <li>点它一下，会打开一个白色窗口。</li>
+    <li>左边一栏里找到「<b>下载</b>」和「<b>应用程序</b>」——等一下我们要用到这两个。</li>
+  </ol>
+  <div class="box check">
+    <div class="box-t">✅ 做完了吗</div>
+    你能看到一个窗口，左边有「下载」「应用程序」这两行字。能，就继续。
+  </div>
+  <div class="en">
+    <span class="en-label">认一认</span>
+    <span class="word"><b>Finder</b> ＝ 访达</span>
+    <span class="word"><b>file</b> ＝ 文件</span>
+    <span class="word"><b>folder</b> ＝ 文件夹</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 2 步</span>
+  <h1>下载写代码的本子</h1>
+  <p class="lead">它的名字叫 VS Code，是免费的。</p>
+  <ol>
+    <li>打开浏览器（Safari 或 Chrome 都行）。</li>
+    <li>在最上面的地址栏里，一个字一个字地输入：<br><code>code.visualstudio.com</code><br>然后按回车键。</li>
+    <li>页面上有一个大大的蓝色按钮，写着 <b>Download for macOS</b>（意思是"下载 Mac 版"）。点它。</li>
+    <li>如果它问你要哪个版本，选写着 <b>Apple Silicon</b> 的那个。</li>
+    <li>浏览器右上角会出现一个小箭头在转圈——它正在下载，等它转完。</li>
+  </ol>
+  <div class="box warn">
+    <div class="box-t">⚠️ 别点错</div>
+    页面上其他写着 Download 的按钮先别点。只点<b>最大的那个蓝色按钮</b>。
+  </div>
+  <div class="en">
+    <span class="en-label">按钮上的词</span>
+    <span class="word"><b>download</b> ＝ 下载</span>
+    <span class="word"><b>for</b> ＝ 给…用的</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 3 步</span>
+  <h1>把它搬进「应用程序」</h1>
+  <p class="lead">下载下来的东西住在「下载」文件夹里，要把它搬到正式的家。</p>
+  <ol>
+    <li>回到<b>访达</b>窗口，点左边的「<b>下载</b>」。</li>
+    <li>找到一个蓝色的图标，名字里有 <b>Visual Studio Code</b>。</li>
+    <li>如果它是一个压缩包（图标像个盒子），<b>双击</b>它，旁边就会解压出真正的程序。</li>
+    <li><b>按住</b>那个蓝色图标不放，<b>拖</b>到左边那一栏的「<b>应用程序</b>」上面，松手。</li>
+    <li>它就搬好家了。</li>
+  </ol>
+  <div class="box check">
+    <div class="box-t">✅ 做完了吗</div>
+    点左边的「应用程序」，能在里面找到 Visual Studio Code。找到了就继续。
+  </div>
+  <div class="en">
+    <span class="en-label">认一认</span>
+    <span class="word"><b>Applications</b> ＝ 应用程序</span>
+    <span class="word"><b>Downloads</b> ＝ 下载</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 4 步</span>
+  <h1>第一次打开它</h1>
+  <p class="lead">电脑第一次见到新程序会有点紧张，会问你一句话。</p>
+  <ol>
+    <li>在「应用程序」里<b>双击</b> Visual Studio Code。</li>
+    <li>可能会弹出一个框，问你「确定要打开吗？」——点「<b>打开</b>」。</li>
+    <li>等几秒，一个深色的大窗口就出来了。这就是你以后写代码的地方。</li>
+  </ol>
+  <div class="box warn">
+    <div class="box-t">⚠️ 如果它说"无法打开，因为无法验证开发者"</div>
+    别慌，这是电脑太小心了。这时候<b>叫老师或爸爸妈妈来一下</b>，需要在「系统设置 → 隐私与安全性」里点一个「仍要打开」的按钮。
+  </div>
+  <div class="en">
+    <span class="en-label">弹窗上的词</span>
+    <span class="word"><b>open</b> ＝ 打开</span>
+    <span class="word"><b>cancel</b> ＝ 取消</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 5 步</span>
+  <h1>把它变成中文界面</h1>
+  <p class="lead">现在它满屏是英文。我们先让它说中文，等你熟了再换回英文。</p>
+  <ol>
+    <li>看 VS Code 窗口<b>最左边那一竖排图标</b>。</li>
+    <li>找到<b>四个小方块</b>的那个图标（第五个，像积木），点一下。</li>
+    <li>上面出现一个搜索框，输入：<code>Chinese</code></li>
+    <li>第一个结果写着 <b>Chinese (Simplified) (简体中文)</b>，点它右边的蓝色 <b>Install</b> 按钮。</li>
+    <li>装完后，右下角会跳出一个小框问你要不要重启，点 <b>Restart</b>（重新启动）。</li>
+    <li>窗口自己关掉再打开——菜单全变成中文了！🎉</li>
+  </ol>
+  <div class="en">
+    <span class="en-label">你刚刚用到的词</span>
+    <span class="word"><b>install</b> ＝ 安装</span>
+    <span class="word"><b>restart</b> ＝ 重新启动</span>
+    <span class="word"><b>extension</b> ＝ 扩展（小插件）</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 6 步</span>
+  <h1>认识第二个工具：终端</h1>
+  <p class="lead">终端（Terminal）是一个只能打字、不能点的黑框框。程序员用它给电脑直接下命令。</p>
+  <ol>
+    <li>在 VS Code 里，点最上面菜单栏的「<b>终端</b>」。</li>
+    <li>再点「<b>新建终端</b>」。</li>
+    <li>窗口下半部分裂开一块，出现一些字，最后有一个方块在闪 —— 它在等你打字。</li>
+  </ol>
+  <div class="box check">
+    <div class="box-t">✅ 试一下</div>
+    输入 <code>date</code> 然后按回车。它会告诉你现在几点。<br>
+    这就是你给电脑下的第一条命令 —— 和课件里给机器人发命令是一回事！
+  </div>
+  <div class="en">
+    <span class="en-label">认一认</span>
+    <span class="word"><b>terminal</b> ＝ 终端</span>
+    <span class="word"><b>new</b> ＝ 新建</span>
+    <span class="word"><b>date</b> ＝ 日期</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 7 步</span>
+  <h1>请翻译官来上班</h1>
+  <p class="lead">这一步要装编译器。它有点大，要下载很久很久。</p>
+  <ol>
+    <li>在刚才的终端里，一个字一个字输入下面这行（<b>中间的两个横杠不能少</b>）：</li>
+  </ol>
+  <pre>xcode-select --install</pre>
+  <ol start="2">
+    <li>按回车。</li>
+    <li>屏幕上会弹出一个窗口，问你要不要安装工具。点「<b>安装</b>」。</li>
+    <li>它会让你同意一份很长的协议，点「<b>同意</b>」。</li>
+    <li>然后……开始漫长的等待。</li>
+  </ol>
+  <div class="box warn">
+    <div class="box-t">⚠️ 可能会问你要密码</div>
+    如果弹出一个要输入密码的框，<b>叫老师或爸爸妈妈来输</b>，那是电脑管理员的密码，你不用知道。
+  </div>
+  <div class="en">
+    <span class="en-label">这行命令的意思</span>
+    <span class="word"><b>select</b> ＝ 选择</span>
+    <span class="word"><b>install</b> ＝ 安装</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 8 步</span>
+  <h1>等待时间 ☕️</h1>
+  <p class="lead">这个下载有好几个 GB，可能要等 <b>20 分钟到 1 个小时</b>，取决于你家网快不快。</p>
+  <div class="box warn">
+    <div class="box-t">⚠️ 三件不要做的事</div>
+    <ul>
+      <li>不要关掉那个进度窗口</li>
+      <li>不要合上电脑盖子（会睡着，下载就停了）</li>
+      <li>不要拔电源</li>
+    </ul>
+  </div>
+  <h2>等待的时候可以做什么</h2>
+  <ul>
+    <li>去玩一遍课件里的第 1 课，把「能量盒」那一关再走一次</li>
+    <li>把这一页往后翻，先看看等会儿要写的代码长什么样</li>
+    <li>喝口水，休息一下眼睛 👀</li>
+  </ul>
+  <div class="ask">💡 装好之后进度窗口会自己消失，或者显示「安装完成」。看到了就翻到下一页验收。</div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 9 步</span>
+  <h1>检查翻译官来了没有</h1>
+  <p class="lead">我们让他自报家门。</p>
+  <ol>
+    <li>回到终端，输入：</li>
+  </ol>
+  <pre>g++ --version</pre>
+  <ol start="2">
+    <li>按回车。</li>
+  </ol>
+  <h2>如果看到这样几行字（数字不一样没关系）</h2>
+  <pre>Apple clang version 21.0.0
+Target: arm64-apple-darwin27.0.0</pre>
+  <div class="box check">
+    <div class="box-t">🎉 成功了！</div>
+    翻译官已经在你的电脑里上班了。<code>g++</code> 就是他的名字。
+  </div>
+  <div class="box warn">
+    <div class="box-t">⚠️ 如果它说 command not found</div>
+    意思是「找不到这个命令」，说明第 7 步还没装完。回到第 7 步再来一次。
+  </div>
+  <div class="en">
+    <span class="en-label">认一认</span>
+    <span class="word"><b>version</b> ＝ 版本</span>
+    <span class="word"><b>command not found</b> ＝ 找不到这个命令</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 10 步</span>
+  <h1>给自己造一个工作间</h1>
+  <p class="lead">代码要有地方住。我们建一个专门的文件夹。</p>
+  <ol>
+    <li>在终端里输入这一行，按回车：</li>
+  </ol>
+  <pre>mkdir -p ~/我的C++/第1课</pre>
+  <ol start="2">
+    <li>再输入这一行，按回车：</li>
+  </ol>
+  <pre>cd ~/我的C++/第1课</pre>
+  <ol start="3">
+    <li>在 VS Code 里点「<b>文件 → 打开文件夹</b>」，找到你刚建的「<b>我的C++</b>」，打开它。</li>
+  </ol>
+  <div class="box check">
+    <div class="box-t">✅ 做完了吗</div>
+    VS Code 左边出现了「我的C++」这个文件夹的名字。出现了就继续。
+  </div>
+  <div class="en">
+    <span class="en-label">命令的意思</span>
+    <span class="word"><b>mkdir</b> ＝ 建一个文件夹</span>
+    <span class="word"><b>cd</b> ＝ 走进某个文件夹</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 11 步</span>
+  <h1>写下你的第一个程序 ✍️</h1>
+  <p class="lead">还记得课上机器人的能量盒吗？我们现在真的把它写出来。</p>
+  <ol>
+    <li>在 VS Code 左边「第1课」文件夹上点右键 →「<b>新建文件</b>」。</li>
+    <li>给它起名字：<code>energy.cpp</code>（<b>后面的 .cpp 一定要有</b>）。</li>
+    <li>把下面这几行一个字一个字敲进去（<b>不要复制粘贴，敲一遍你才会记住</b>）：</li>
+  </ol>
+  <pre>#include &lt;iostream&gt;
+
+int main() {
+    int energy = 3;
+    energy = energy + 4;
+    energy = energy - 1;
+    std::cout &lt;&lt; energy;
+    return 0;
+}</pre>
+  <ol start="4">
+    <li>按 <kbd>⌘</kbd>+<kbd>S</kbd> 保存。</li>
+  </ol>
+  <div class="ask">🤔 敲完先别急着跑。<b>猜一猜：屏幕上会出现几？</b> 把你猜的数字记在心里。</div>
+  <div class="en">
+    <span class="en-label">代码里的词</span>
+    <span class="word"><b>int</b> ＝ 整数</span>
+    <span class="word"><b>energy</b> ＝ 能量</span>
+    <span class="word"><b>cout</b> ＝ 喊出来（输出）</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 12 步</span>
+  <h1>让翻译官翻译，让电脑跑起来 🏃</h1>
+  <p class="lead">两条命令，一条翻译，一条运行。</p>
+  <ol>
+    <li>在终端里输入这一行（翻译），按回车：</li>
+  </ol>
+  <pre>g++ -std=c++17 energy.cpp -o energy</pre>
+  <ol start="2">
+    <li>如果什么都没显示 —— <b>那就是成功了</b>！翻译官不出声就是没挑出毛病。</li>
+    <li>再输入这一行（运行），按回车：</li>
+  </ol>
+  <pre>./energy</pre>
+  <div class="box check">
+    <div class="box-t">🎉 屏幕上出现 6 了吗？</div>
+    和你刚才猜的一样吗？和课件里机器人的能量一样吗？<br>
+    <b>三个 6 —— 你手算的、课件演的、你自己电脑跑出来的。</b> 你已经是真的在写 C++ 了。
+  </div>
+  <div class="box warn">
+    <div class="box-t">⚠️ 如果冒出一堆红字</div>
+    那是翻译官在告诉你哪里写错了。看红字里的<b>数字</b>（比如 <code>line 6</code>），那就是出问题的行号，回去检查那一行是不是少了个分号 <code>;</code>。
+  </div>
+  <div class="en">
+    <span class="en-label">命令的意思</span>
+    <span class="word"><b>-o</b> ＝ 输出成…</span>
+    <span class="word"><b>error</b> ＝ 错误</span>
+    <span class="word"><b>line</b> ＝ 行</span>
+  </div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">第 13 步</span>
+  <h1>作业：让它变成 10 🎯</h1>
+  <p class="lead">课上你在屏幕里把能量凑到过 10。现在在你自己的电脑上再做一次。</p>
+  <h2>要求</h2>
+  <ol>
+    <li>打开 <code>energy.cpp</code>。</li>
+    <li><b>只改一个数字</b>，让程序跑出来正好是 <b>10</b>。</li>
+    <li>改之前<b>先在纸上算一遍</b>，写下你觉得会是几。</li>
+    <li>然后重新翻译、重新运行，看看和你算的一样不一样。</li>
+  </ol>
+  <pre>g++ -std=c++17 energy.cpp -o energy
+./energy</pre>
+  <h2>加分题（想挑战再做）</h2>
+  <ul>
+    <li>在每一行下面都加一句 <code>std::cout &lt;&lt; energy;</code>，看看能不能把 3、7、6 全都喊出来。</li>
+    <li>试试故意删掉一个分号，看翻译官会说什么。<b>把错误弄出来也是一种本事</b> —— 你要认识他生气的样子。</li>
+  </ul>
+  <div class="ask">📝 下次上课带来：你改的那个数字是几？为什么改它？</div>
+</section>
+
+<section class="slide">
+  <span class="step-tag">完成</span>
+  <h1>你的实验室建好了 🎉</h1>
+  <p class="lead">从今天起，你的电脑不只是能看视频的电脑了。</p>
+  <h2>你今天学会的英文单词</h2>
+  <div class="en" style="border-top:0;padding-top:0">
+    <span class="word"><b>code</b> 代码</span>
+    <span class="word"><b>install</b> 安装</span>
+    <span class="word"><b>file</b> 文件</span>
+    <span class="word"><b>folder</b> 文件夹</span>
+    <span class="word"><b>open</b> 打开</span>
+    <span class="word"><b>save</b> 保存</span>
+    <span class="word"><b>run</b> 运行</span>
+    <span class="word"><b>error</b> 错误</span>
+    <span class="word"><b>line</b> 行</span>
+    <span class="word"><b>int</b> 整数</span>
+    <span class="word"><b>cout</b> 输出</span>
+    <span class="word"><b>terminal</b> 终端</span>
+    <span class="word"><b>version</b> 版本</span>
+  </div>
+  <div class="box check" style="margin-top:24px">
+    <div class="box-t">✅ 下次课之前，确认这三件事都是好的</div>
+    <ol style="margin:6px 0">
+      <li>VS Code 能打开，菜单是中文的</li>
+      <li>终端里输入 <code>g++ --version</code> 有回应</li>
+      <li><code>energy.cpp</code> 还在「我的C++/第1课」文件夹里</li>
+    </ol>
+  </div>
+  <div class="ask">🚀 下节课，机器人要面对一扇<b>会自己思考</b>的智能舱门 —— 而写规则的人是你。</div>
+</section>
+
+</main>
+
+<nav>
+  <button id="prev">← 上一步</button>
+  <div class="dots" id="dots"></div>
+  <button id="next" class="primary">下一步 →</button>
+</nav>
+
+<script>
+(function(){
+  var slides = [].slice.call(document.querySelectorAll('.slide'));
+  var i = 0;
+  var bar = document.getElementById('bar');
+  var cur = document.getElementById('cur');
+  var tot = document.getElementById('tot');
+  var dots = document.getElementById('dots');
+  var prev = document.getElementById('prev');
+  var next = document.getElementById('next');
+  var KEY = 'cpplab_setup_step';
+
+  tot.textContent = slides.length;
+
+  slides.forEach(function(_, n){
+    var d = document.createElement('button');
+    d.className = 'dot';
+    d.title = '第 ' + (n+1) + ' 页';
+    d.addEventListener('click', function(){ go(n); });
+    dots.appendChild(d);
+  });
+  var dotEls = [].slice.call(dots.children);
+
+  function go(n){
+    if (n < 0 || n >= slides.length) return;
+    slides[i].classList.remove('on');
+    i = n;
+    slides[i].classList.add('on');
+    render();
+    window.scrollTo(0,0);
+    try { localStorage.setItem(KEY, String(i)); } catch(e){}
+  }
+
+  function render(){
+    cur.textContent = i + 1;
+    bar.style.width = ((i+1) / slides.length * 100) + '%';
+    prev.disabled = (i === 0);
+    next.textContent = (i === slides.length - 1) ? '全部完成 ✓' : '下一步 →';
+    next.disabled = (i === slides.length - 1);
+    dotEls.forEach(function(d, n){
+      d.className = 'dot' + (n === i ? ' on' : (n < i ? ' done' : ''));
+    });
+  }
+
+  prev.addEventListener('click', function(){ go(i-1); });
+  next.addEventListener('click', function(){ go(i+1); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(i+1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(i-1); }
+  });
+
+  // 上次看到哪一页，下次打开接着看
+  try {
+    var saved = parseInt(localStorage.getItem(KEY), 10);
+    if (!isNaN(saved) && saved > 0 && saved < slides.length) go(saved);
+  } catch(e){}
+
+  render();
+})();
+</script>
+
+</body>
+</html>
