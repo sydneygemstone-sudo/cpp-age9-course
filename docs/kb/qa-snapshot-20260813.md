@@ -14,7 +14,7 @@
 - **方式 A 首屏机制成立**：`--fresh`+种子 → HTML 内联 `window.__CPPLAB_SEED__`（`server.js:293-311`），`app.js:522` 渲染「你好，<昵称>！」；GET /api/state 返回 nickname=闪电小队长 / path=A / theme=robot。
 - **file:// 加载机制安全**（方式 B 应急）：`index.html:27-40` 纯 `<script src>`；fetch 仅 `js/engine/sync.js`、`js/engine/compiler.js`；无 module/Worker。
 
-## 8099 遗留进程（等 Dean 清）
+## 8099 遗留进程（✅ 已了结：2026-08-14 晚复验 PID 88236 已自行消失，`0.0.0.0` 绑定实测 8099 空闲，全系统无 server/server.js 进程。以下为历史取证。）
 - 8099 被遗留课堂服务器占用，**PID=88236**：`node server/server.js --port 8099 --seed server/seed.json --fresh`，PPID=1，启动 2026-08-12 01:54:15；`curl localhost:8099/api/state` → 200，是 2026-08-11 旧种子的彩排会话（sessionId=sess-seed-mso3zlaq，version=11，lesson1.completed=true）。
 - 定位手段只用了只读命令（`curl` + `ps -ax -o pid,ppid,user,lstart,command`，命令行自带 `--port 8099` 即坐实），**未用 lsof、未杀（闸门）**。处置命令见 `ops/lines/cpp/out/SPEC.md` T1（`kill 88236`），或当堂换端口。
 - 端口空闲的可靠检查＝`0.0.0.0` 绑定或直接起服；`127.0.0.1` 探测不充分（已踩坑：8099 对 127.0.0.1 探测看似可用，起服才 EADDRINUSE）。
