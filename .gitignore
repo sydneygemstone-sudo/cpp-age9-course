@@ -9,3 +9,6 @@ qa/.chrome*
 # 编辑器临时文件
 *.swp
 .DS_Store
+
+# worktree 一律放项目内（Dean 要求）
+.worktrees/
