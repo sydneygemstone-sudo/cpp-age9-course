@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>样板 · 封面页（剧场模式）</title>
+<style>
+/* ============ design tokens（docs/design/design-tokens.md）============ */
+:root {
+  --cpp-text-sm: 15px;
+  --cpp-text-base: clamp(17px, 1vw + 12px, 19px);
+  --cpp-text-lg: clamp(19px, 1.2vw + 13px, 22px);
+  --cpp-text-xl: clamp(24px, 2vw + 14px, 32px);
+  --cpp-text-2xl: clamp(32px, 3.5vw + 16px, 48px);
+  --cpp-text-hero: clamp(44px, 6vw + 18px, 76px);
+  --cpp-font: system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --cpp-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --cpp-space-2: 8px;  --cpp-space-3: 12px; --cpp-space-4: 16px;
+  --cpp-space-5: 24px; --cpp-space-6: 32px; --cpp-space-7: 48px;
+  --cpp-radius-md: 14px; --cpp-radius-lg: 22px; --cpp-radius-pill: 999px;
+  --cpp-tap-min: 44px; --cpp-tap-cta: 64px;
+  --cpp-dur-fast: 120ms; --cpp-dur-base: 200ms; --cpp-dur-slow: 320ms;
+  --cpp-ease-out: cubic-bezier(.22, .8, .35, 1);
+  --cpp-ease-pop: cubic-bezier(.34, 1.4, .5, 1);
+  --cpp-shadow-md: 0 6px 18px rgba(23, 32, 55, .14);
+  --cpp-shadow-lg: 0 14px 40px rgba(23, 32, 55, .20);
+}
+/* 三主题色板：挂 body[data-theme]，与现有 app 机制一致 */
+body, body[data-theme="robot"] {
+  --cpp-bg: #edf3fb; --cpp-surface: #ffffff;
+  --cpp-primary: #2e6fe0; --cpp-primary-soft: #dbeafe;
+  --cpp-accent: #b45309; --cpp-accent-soft: #fef3c7;
+  --cpp-ink: #1e293b; --cpp-muted: #526079;
+}
+body[data-theme="pet"] {
+  --cpp-bg: #f0f8e9; --cpp-surface: #ffffff;
+  --cpp-primary: #4d8b1f; --cpp-primary-soft: #e3f3cf;
+  --cpp-accent: #b45309; --cpp-accent-soft: #fdeeca;
+  --cpp-ink: #22301b; --cpp-muted: #556349;
+}
+body[data-theme="adventure"] {
+  --cpp-bg: #faf4e6; --cpp-surface: #fffdf6;
+  --cpp-primary: #b45309; --cpp-primary-soft: #fde8cd;
+  --cpp-accent: #b91c1c; --cpp-accent-soft: #fbe3e0;
+  --cpp-ink: #33261a; --cpp-muted: #6b5b47;
+}
+
+/* ============ 剧场舞台：一屏一事、永不滚动 ============ */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  font-family: var(--cpp-font);
+  font-size: var(--cpp-text-base);
+  line-height: 1.6;
+  color: var(--cpp-ink);
+  background:
+    radial-gradient(1100px 60% at 50% -12%, var(--cpp-primary-soft), transparent 70%),
+    var(--cpp-bg);
+  transition: background var(--cpp-dur-slow) var(--cpp-ease-out);
+  -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;
+}
+.stage {
+  height: 100vh; height: 100dvh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: var(--cpp-space-4);
+  padding: calc(var(--cpp-space-5) + env(safe-area-inset-top, 0px))
+           calc(var(--cpp-space-5) + env(safe-area-inset-right, 0px))
+           calc(var(--cpp-space-5) + env(safe-area-inset-bottom, 0px))
+           calc(var(--cpp-space-5) + env(safe-area-inset-left, 0px));
+  text-align: center;
+  position: relative;
+}
+
+/* 主题切换器（样板页专用，右上角小件） */
+.theme-switch {
+  position: absolute;
+  top: calc(var(--cpp-space-3) + env(safe-area-inset-top, 0px));
+  right: calc(var(--cpp-space-3) + env(safe-area-inset-right, 0px));
+  display: flex; gap: 6px;
+  background: var(--cpp-surface);
+  border-radius: var(--cpp-radius-pill);
+  padding: 4px;
+  box-shadow: var(--cpp-shadow-md);
+}
+.ts-btn {
+  min-width: var(--cpp-tap-min); min-height: var(--cpp-tap-min);
+  border: 2px solid transparent; background: none;
+  border-radius: var(--cpp-radius-pill);
+  font-size: 22px; cursor: pointer;
+  transition: background var(--cpp-dur-fast), border-color var(--cpp-dur-fast);
+}
+.ts-btn.on { background: var(--cpp-primary-soft); border-color: var(--cpp-primary); }
+
+/* 封面元素 */
+.kicker {
+  font-size: var(--cpp-text-sm); font-weight: 800;
+  letter-spacing: .35em; text-indent: .35em;
+  color: var(--cpp-muted); text-transform: uppercase;
+}
+.mascot {
+  font-size: clamp(72px, 14vh, 130px);
+  line-height: 1;
+  filter: drop-shadow(0 10px 22px rgba(23, 32, 55, .18));
+  animation: float 3.2s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+h1 {
+  margin: 0;
+  font-size: var(--cpp-text-hero);
+  line-height: 1.15;
+  letter-spacing: .02em;
+}
+h1 .accent { color: var(--cpp-primary); }
+.subtitle { font-size: var(--cpp-text-lg); color: var(--cpp-muted); margin: 0; }
+
+/* 双语术语 chip：中文为主 + 等宽英文（Dean 定案） */
+.term {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  background: var(--cpp-primary-soft);
+  border-radius: var(--cpp-radius-pill);
+  padding: 2px 12px;
+  font-weight: 700; color: var(--cpp-ink);
+  white-space: nowrap;
+}
+.term code {
+  font-family: var(--cpp-mono);
+  font-size: var(--cpp-text-sm);
+  font-weight: 400; color: var(--cpp-primary);
+}
+.today {
+  display: flex; flex-wrap: wrap; gap: var(--cpp-space-2);
+  justify-content: center; align-items: center;
+  font-size: var(--cpp-text-base);
+}
+
+/* 唯一主按钮：C 位大 CTA */
+.cta {
+  margin-top: var(--cpp-space-4);
+  min-height: var(--cpp-tap-cta);
+  padding: var(--cpp-space-3) var(--cpp-space-7);
+  font-family: inherit;
+  font-size: var(--cpp-text-xl); font-weight: 800;
+  color: #fff; background: var(--cpp-primary);
+  border: none; border-radius: var(--cpp-radius-pill);
+  cursor: pointer;
+  box-shadow: var(--cpp-shadow-lg);
+  transition: transform var(--cpp-dur-fast) var(--cpp-ease-pop), box-shadow var(--cpp-dur-fast);
+}
+.cta:hover { transform: translateY(-2px) scale(1.02); }
+.cta:active { transform: translateY(1px); }
+.cta:focus-visible { outline: 4px solid var(--cpp-accent); outline-offset: 3px; }
+.cta code { font-family: var(--cpp-mono); font-size: .62em; font-weight: 400; opacity: .85; margin-left: 8px; }
+
+.footnote { font-size: var(--cpp-text-sm); color: var(--cpp-muted); }
+
+/* 动画归零：no-anim / 系统减弱动态 一律瞬时（CONTRACT §12） */
+body.no-anim *, body.no-anim *::before, body.no-anim *::after
+{ transition: none !important; animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body data-theme="robot">
+  <div class="stage">
+    <div class="theme-switch" role="group" aria-label="切换主题">
+      <button class="ts-btn on" data-set-theme="robot"  aria-label="机器人世界">🤖</button>
+      <button class="ts-btn"    data-set-theme="pet"    aria-label="宠物乐园">🐶</button>
+      <button class="ts-btn"    data-set-theme="adventure" aria-label="探险王国">🎒</button>
+    </div>
+
+    <div class="kicker" data-t="kicker">星际救援 · 第 1 课</div>
+    <div class="mascot" data-t="mascot" aria-hidden="true">🤖</div>
+    <h1>C++ <span class="accent">能量实验室</span></h1>
+    <p class="subtitle" data-t="partnerLine">你的机器人伙伴已经就位，等你发出第一条指令！</p>
+
+    <div class="today">
+      <span>今天要学：</span>
+      <span class="term">变量 <code>variable</code></span>
+      <span class="term">输出 <code>output</code></span>
+      <span class="term">编译 <code>compile</code></span>
+    </div>
+
+    <button class="cta">出发！<code>start</code></button>
+    <div class="footnote" data-t="worldName">机器人世界 · 闪电小队长</div>
+  </div>
+
+<script>
+/* 主题词随 js/engine/theme.js 词典（正本 robot → pet/adventure），样板页内置最小子集 */
+var THEME_TEXT = {
+  robot: {
+    kicker: '星际救援 · 第 1 课',
+    mascot: '🤖',
+    partnerLine: '你的机器人伙伴已经就位，等你发出第一条指令！',
+    worldName: '机器人世界 · 闪电小队长'
+  },
+  pet: {
+    kicker: '乐园救援 · 第 1 课',
+    mascot: '🐶',
+    partnerLine: '你的小狗搭档已经就位，等你发出第一条指令！',
+    worldName: '宠物乐园 · 闪电小队长'
+  },
+  adventure: {
+    kicker: '王国救援 · 第 1 课',
+    mascot: '🎒',
+    partnerLine: '你的探险搭档已经就位，等你发出第一条指令！',
+    worldName: '探险王国 · 闪电小队长'
+  }
+};
+function setTheme(id) {
+  document.body.setAttribute('data-theme', id);
+  var dict = THEME_TEXT[id];
+  document.querySelectorAll('[data-t]').forEach(function (el) {
+    var key = el.getAttribute('data-t');
+    if (dict[key] !== undefined) el.textContent = dict[key];
+  });
+  document.querySelectorAll('.ts-btn').forEach(function (b) {
+    b.classList.toggle('on', b.getAttribute('data-set-theme') === id);
+  });
+}
+document.querySelectorAll('.ts-btn').forEach(function (b) {
+  b.addEventListener('click', function () { setTheme(b.getAttribute('data-set-theme')); });
+});
+</script>
+</body>
+</html>

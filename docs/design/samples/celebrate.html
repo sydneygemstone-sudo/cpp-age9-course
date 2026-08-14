@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>样板 · 庆祝页（剧场模式）</title>
+<style>
+/* ============ design tokens（docs/design/design-tokens.md）============ */
+:root {
+  --cpp-text-sm: 15px;
+  --cpp-text-base: clamp(17px, 1vw + 12px, 19px);
+  --cpp-text-lg: clamp(19px, 1.2vw + 13px, 22px);
+  --cpp-text-xl: clamp(24px, 2vw + 14px, 32px);
+  --cpp-text-2xl: clamp(32px, 3.5vw + 16px, 48px);
+  --cpp-font: system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --cpp-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --cpp-space-2: 8px;  --cpp-space-3: 12px; --cpp-space-4: 16px;
+  --cpp-space-5: 24px; --cpp-space-6: 32px; --cpp-space-7: 48px;
+  --cpp-radius-md: 14px; --cpp-radius-lg: 22px; --cpp-radius-pill: 999px;
+  --cpp-tap-min: 44px; --cpp-tap-cta: 64px;
+  --cpp-dur-fast: 120ms; --cpp-dur-base: 200ms; --cpp-dur-slow: 320ms; --cpp-dur-ritual: 700ms;
+  --cpp-ease-out: cubic-bezier(.22, .8, .35, 1);
+  --cpp-ease-pop: cubic-bezier(.34, 1.4, .5, 1);
+  --cpp-shadow-md: 0 6px 18px rgba(23, 32, 55, .14);
+  --cpp-shadow-lg: 0 14px 40px rgba(23, 32, 55, .20);
+  --cpp-ok: #16a34a;
+}
+body, body[data-theme="robot"] {
+  --cpp-bg: #edf3fb; --cpp-surface: #ffffff;
+  --cpp-primary: #2e6fe0; --cpp-primary-soft: #dbeafe;
+  --cpp-accent: #b45309; --cpp-accent-soft: #fef3c7;
+  --cpp-ink: #1e293b; --cpp-muted: #526079;
+  --cpp-gold: #f59e0b;             /* 勋章金：各主题微调 */
+}
+body[data-theme="pet"] {
+  --cpp-bg: #f0f8e9; --cpp-surface: #ffffff;
+  --cpp-primary: #4d8b1f; --cpp-primary-soft: #e3f3cf;
+  --cpp-accent: #b45309; --cpp-accent-soft: #fdeeca;
+  --cpp-ink: #22301b; --cpp-muted: #556349;
+  --cpp-gold: #eab308;
+}
+body[data-theme="adventure"] {
+  --cpp-bg: #faf4e6; --cpp-surface: #fffdf6;
+  --cpp-primary: #b45309; --cpp-primary-soft: #fde8cd;
+  --cpp-accent: #b91c1c; --cpp-accent-soft: #fbe3e0;
+  --cpp-ink: #33261a; --cpp-muted: #6b5b47;
+  --cpp-gold: #d97706;
+}
+
+/* ============ 剧场舞台 ============ */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  font-family: var(--cpp-font);
+  font-size: var(--cpp-text-base);
+  line-height: 1.6;
+  color: var(--cpp-ink);
+  background:
+    radial-gradient(900px 55% at 50% 110%, var(--cpp-accent-soft), transparent 70%),
+    var(--cpp-bg);
+  transition: background var(--cpp-dur-slow) var(--cpp-ease-out);
+  -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;
+}
+.stage {
+  height: 100vh; height: 100dvh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: var(--cpp-space-4);
+  padding: calc(var(--cpp-space-5) + env(safe-area-inset-top, 0px))
+           calc(var(--cpp-space-5) + env(safe-area-inset-right, 0px))
+           calc(var(--cpp-space-5) + env(safe-area-inset-bottom, 0px))
+           calc(var(--cpp-space-5) + env(safe-area-inset-left, 0px));
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.theme-switch {
+  position: absolute;
+  top: calc(var(--cpp-space-3) + env(safe-area-inset-top, 0px));
+  right: calc(var(--cpp-space-3) + env(safe-area-inset-right, 0px));
+  display: flex; gap: 6px;
+  background: var(--cpp-surface);
+  border-radius: var(--cpp-radius-pill);
+  padding: 4px;
+  box-shadow: var(--cpp-shadow-md);
+  z-index: 5;
+}
+.ts-btn { min-width: var(--cpp-tap-min); min-height: var(--cpp-tap-min); border: 2px solid transparent; background: none; border-radius: var(--cpp-radius-pill); font-size: 22px; cursor: pointer; transition: background var(--cpp-dur-fast), border-color var(--cpp-dur-fast); }
+.ts-btn.on { background: var(--cpp-primary-soft); border-color: var(--cpp-primary); }
+
+/* ============ 勋章（纯 CSS：光环 + 弹入 + 呼吸微光） ============ */
+.medal-wrap { position: relative; }
+.medal {
+  width: clamp(150px, 26vh, 230px);
+  height: clamp(150px, 26vh, 230px);
+  border-radius: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .8), transparent 46%),
+    var(--cpp-gold);
+  border: 8px solid var(--cpp-surface);
+  outline: 4px solid var(--cpp-gold);
+  box-shadow: var(--cpp-shadow-lg), 0 0 0 14px color-mix(in srgb, var(--cpp-gold) 18%, transparent);
+  animation: medal-pop var(--cpp-dur-ritual) var(--cpp-ease-pop) both,
+             medal-glow 2.6s ease-in-out .8s infinite;
+}
+@keyframes medal-pop {
+  0%   { transform: scale(0) rotate(-24deg); opacity: 0; }
+  70%  { transform: scale(1.12) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+@keyframes medal-glow {
+  0%, 100% { box-shadow: var(--cpp-shadow-lg), 0 0 0 14px color-mix(in srgb, var(--cpp-gold) 18%, transparent); }
+  50%      { box-shadow: var(--cpp-shadow-lg), 0 0 0 22px color-mix(in srgb, var(--cpp-gold) 10%, transparent); }
+}
+.medal .m-icon { font-size: clamp(52px, 9vh, 84px); line-height: 1; }
+.medal .m-label { font-size: var(--cpp-text-sm); font-weight: 800; color: #ffffff; text-shadow: 0 1px 3px rgba(0, 0, 0, .35); letter-spacing: .1em; }
+
+/* 光芒条（勋章背后旋转的细光条） */
+.rays {
+  position: absolute; inset: -26%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    color-mix(in srgb, var(--cpp-gold) 22%, transparent) 0deg 9deg,
+    transparent 9deg 30deg);
+  animation: spin 14s linear infinite;
+  z-index: -1;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 星星雨：纯 CSS，几颗错峰弹跳 */
+.star { position: absolute; top: -6vh; font-size: clamp(20px, 3.4vh, 34px); animation: fall 3s linear infinite; opacity: 0; }
+@keyframes fall {
+  0%   { transform: translateY(0) rotate(0) scale(.7); opacity: 0; }
+  12%  { opacity: 1; }
+  100% { transform: translateY(112vh) rotate(300deg) scale(1.1); opacity: .9; }
+}
+.star:nth-child(1) { left: 8%;  animation-delay: 0s; }
+.star:nth-child(2) { left: 22%; animation-delay: 1.3s; font-size: 20px; }
+.star:nth-child(3) { left: 38%; animation-delay: .6s; }
+.star:nth-child(4) { left: 62%; animation-delay: 1.8s; font-size: 22px; }
+.star:nth-child(5) { left: 78%; animation-delay: .3s; }
+.star:nth-child(6) { left: 90%; animation-delay: 1s; font-size: 24px; }
+
+/* 文案 */
+.cheer { margin: 0; font-size: var(--cpp-text-2xl); line-height: 1.2; }
+.sub { margin: 0; font-size: var(--cpp-text-lg); color: var(--cpp-muted); display: flex; flex-wrap: wrap; gap: var(--cpp-space-2); justify-content: center; align-items: center; }
+.term { display: inline-flex; align-items: baseline; gap: 6px; background: var(--cpp-primary-soft); border-radius: var(--cpp-radius-pill); padding: 1px 11px; font-weight: 700; color: var(--cpp-ink); white-space: nowrap; font-size: var(--cpp-text-base); }
+.term code { font-family: var(--cpp-mono); font-size: var(--cpp-text-sm); font-weight: 400; color: var(--cpp-primary); }
+.partner-line { font-size: var(--cpp-text-base); color: var(--cpp-muted); margin: 0; }
+
+/* 唯一主按钮 */
+.cta {
+  margin-top: var(--cpp-space-3);
+  min-height: var(--cpp-tap-cta);
+  padding: var(--cpp-space-3) var(--cpp-space-7);
+  font-family: inherit; font-size: var(--cpp-text-xl); font-weight: 800;
+  color: #fff; background: var(--cpp-primary);
+  border: none; border-radius: var(--cpp-radius-pill);
+  cursor: pointer; box-shadow: var(--cpp-shadow-lg);
+  transition: transform var(--cpp-dur-fast) var(--cpp-ease-pop), box-shadow var(--cpp-dur-fast);
+}
+.cta:hover { transform: translateY(-2px) scale(1.02); }
+.cta:active { transform: translateY(1px); }
+.cta:focus-visible { outline: 4px solid var(--cpp-accent); outline-offset: 3px; }
+.cta code { font-family: var(--cpp-mono); font-size: .62em; font-weight: 400; opacity: .85; margin-left: 8px; }
+
+/* 动画归零：no-anim / 系统减弱动态（CONTRACT §12）——庆祝页也必须瞬时呈现终态 */
+body.no-anim *, body.no-anim *::before, body.no-anim *::after
+{ transition: none !important; animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .star { display: none; }
+}
+</style>
+</head>
+<body data-theme="robot">
+  <div class="stage">
+    <div class="theme-switch" role="group" aria-label="切换主题">
+      <button class="ts-btn on" data-set-theme="robot" aria-label="机器人世界">🤖</button>
+      <button class="ts-btn" data-set-theme="pet" aria-label="宠物乐园">🐶</button>
+      <button class="ts-btn" data-set-theme="adventure" aria-label="探险王国">🎒</button>
+    </div>
+
+    <!-- 星星雨（纯 CSS，无外部资源） -->
+    <span class="star" aria-hidden="true">⭐</span>
+    <span class="star" aria-hidden="true">✨</span>
+    <span class="star" aria-hidden="true">🌟</span>
+    <span class="star" aria-hidden="true">✨</span>
+    <span class="star" aria-hidden="true">⭐</span>
+    <span class="star" aria-hidden="true">🌟</span>
+
+    <div class="medal-wrap">
+      <div class="rays" aria-hidden="true"></div>
+      <div class="medal">
+        <span class="m-icon" data-t="mascot">🤖</span>
+        <span class="m-label">勋章 GET!</span>
+      </div>
+    </div>
+
+    <h1 class="cheer">太棒了，闪电小队长！</h1>
+    <p class="sub">
+      <span>你拿到了</span>
+      <span class="term">变量 <code>variable</code></span>
+      <span>小达人勋章</span>
+    </p>
+    <p class="partner-line" data-t="praise">机器人伙伴向你敬了个礼：能量满格，继续前进！</p>
+
+    <button class="cta">继续前进<code>next</code></button>
+  </div>
+
+<script>
+/* 主题词随 js/engine/theme.js 词典（向你敬了个礼 → 摇尾巴/挥手） */
+var THEME_TEXT = {
+  robot:     { mascot: '🤖', praise: '机器人伙伴向你敬了个礼：能量满格，继续前进！' },
+  pet:       { mascot: '🐶', praise: '小狗搭档朝你摇了摇尾巴：能量满格，继续前进！' },
+  adventure: { mascot: '🎒', praise: '探险搭档向你挥了挥手：能量满格，继续前进！' }
+};
+function setTheme(id) {
+  document.body.setAttribute('data-theme', id);
+  var dict = THEME_TEXT[id];
+  document.querySelectorAll('[data-t]').forEach(function (el) {
+    var key = el.getAttribute('data-t');
+    if (dict[key] !== undefined) el.textContent = dict[key];
+  });
+  document.querySelectorAll('.ts-btn').forEach(function (b) {
+    b.classList.toggle('on', b.getAttribute('data-set-theme') === id);
+  });
+}
+document.querySelectorAll('.ts-btn').forEach(function (b) {
+  b.addEventListener('click', function () { setTheme(b.getAttribute('data-set-theme')); });
+});
+</script>
+</body>
+</html>

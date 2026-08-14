@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>样板 · 活动页（剧场模式）</title>
+<style>
+/* ============ design tokens（docs/design/design-tokens.md）============ */
+:root {
+  --cpp-text-sm: 15px;
+  --cpp-text-base: clamp(17px, 1vw + 12px, 19px);
+  --cpp-text-lg: clamp(19px, 1.2vw + 13px, 22px);
+  --cpp-text-xl: clamp(24px, 2vw + 14px, 32px);
+  --cpp-text-code: clamp(16px, .9vw + 12px, 18px);
+  --cpp-font: system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --cpp-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --cpp-space-1: 4px;  --cpp-space-2: 8px;  --cpp-space-3: 12px; --cpp-space-4: 16px;
+  --cpp-space-5: 24px; --cpp-space-6: 32px;
+  --cpp-radius-sm: 8px; --cpp-radius-md: 14px; --cpp-radius-lg: 22px; --cpp-radius-pill: 999px;
+  --cpp-tap-min: 44px; --cpp-tap-cta: 64px;
+  --cpp-dur-fast: 120ms; --cpp-dur-base: 200ms; --cpp-dur-slow: 320ms;
+  --cpp-ease-out: cubic-bezier(.22, .8, .35, 1);
+  --cpp-ease-pop: cubic-bezier(.34, 1.4, .5, 1);
+  --cpp-shadow-sm: 0 2px 10px rgba(23, 32, 55, .08);
+  --cpp-shadow-md: 0 6px 18px rgba(23, 32, 55, .14);
+  --cpp-shadow-lg: 0 14px 40px rgba(23, 32, 55, .20);
+  /* 代码台：三主题统一深底（跨主题视觉锚点） */
+  --cpp-code-bg: #0f172a; --cpp-code-ink: #e2e8f0;
+  --cpp-ok: #16a34a; --cpp-ok-soft: #dcfce7;
+}
+body, body[data-theme="robot"] {
+  --cpp-bg: #edf3fb; --cpp-surface: #ffffff;
+  --cpp-primary: #2e6fe0; --cpp-primary-soft: #dbeafe;
+  --cpp-accent: #b45309; --cpp-accent-soft: #fef3c7;
+  --cpp-ink: #1e293b; --cpp-muted: #526079;
+}
+body[data-theme="pet"] {
+  --cpp-bg: #f0f8e9; --cpp-surface: #ffffff;
+  --cpp-primary: #4d8b1f; --cpp-primary-soft: #e3f3cf;
+  --cpp-accent: #b45309; --cpp-accent-soft: #fdeeca;
+  --cpp-ink: #22301b; --cpp-muted: #556349;
+}
+body[data-theme="adventure"] {
+  --cpp-bg: #faf4e6; --cpp-surface: #fffdf6;
+  --cpp-primary: #b45309; --cpp-primary-soft: #fde8cd;
+  --cpp-accent: #b91c1c; --cpp-accent-soft: #fbe3e0;
+  --cpp-ink: #33261a; --cpp-muted: #6b5b47;
+}
+
+/* ============ 剧场舞台 ============ */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  font-family: var(--cpp-font);
+  font-size: var(--cpp-text-base);
+  line-height: 1.6;
+  color: var(--cpp-ink);
+  background: var(--cpp-bg);
+  transition: background var(--cpp-dur-slow) var(--cpp-ease-out);
+  -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;
+}
+.stage {
+  height: 100vh; height: 100dvh;
+  display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+/* 舞台眉：一条细线放位置感（进度点）+ 工具把手 + 主题切换，别的都不放 */
+.brow {
+  flex: none;
+  display: flex; align-items: center; gap: var(--cpp-space-3);
+  padding: var(--cpp-space-2) var(--cpp-space-4);
+}
+.brow .who { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: var(--cpp-text-sm); color: var(--cpp-muted); }
+.brow .who .mascot { font-size: 24px; }
+.dots { display: flex; gap: 7px; margin: 0 auto; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: var(--cpp-primary-soft); border: 2px solid transparent; }
+.dot.done { background: var(--cpp-ok); }
+.dot.current { background: var(--cpp-surface); border-color: var(--cpp-primary); transform: scale(1.3); }
+
+.theme-switch { display: flex; gap: 4px; background: var(--cpp-surface); border-radius: var(--cpp-radius-pill); padding: 3px; box-shadow: var(--cpp-shadow-sm); }
+.ts-btn { min-width: var(--cpp-tap-min); min-height: 38px; border: 2px solid transparent; background: none; border-radius: var(--cpp-radius-pill); font-size: 19px; cursor: pointer; transition: background var(--cpp-dur-fast), border-color var(--cpp-dur-fast); }
+.ts-btn.on { background: var(--cpp-primary-soft); border-color: var(--cpp-primary); }
+
+/* 主区：一屏只有「这一个活动」 */
+.act {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: var(--cpp-space-3);
+  padding: 0 var(--cpp-space-5);
+  text-align: center;
+}
+.act-kicker { font-size: var(--cpp-text-sm); font-weight: 800; letter-spacing: .2em; text-indent: .2em; color: var(--cpp-muted); }
+.act h2 { margin: 0; font-size: var(--cpp-text-xl); line-height: 1.25; }
+.act .prompt { margin: 0; font-size: var(--cpp-text-lg); color: var(--cpp-muted); display: flex; flex-wrap: wrap; gap: var(--cpp-space-2); justify-content: center; align-items: center; }
+
+/* 双语术语 chip（中文为主 + 等宽英文） */
+.term { display: inline-flex; align-items: baseline; gap: 6px; background: var(--cpp-primary-soft); border-radius: var(--cpp-radius-pill); padding: 1px 11px; font-weight: 700; color: var(--cpp-ink); white-space: nowrap; font-size: var(--cpp-text-base); }
+.term code { font-family: var(--cpp-mono); font-size: var(--cpp-text-sm); font-weight: 400; color: var(--cpp-primary); }
+
+/* 代码卡：三主题统一深底，语法高亮感 */
+.code-card {
+  width: min(680px, 92vw);
+  background: var(--cpp-code-bg); color: var(--cpp-code-ink);
+  border-radius: var(--cpp-radius-lg);
+  box-shadow: var(--cpp-shadow-lg);
+  text-align: left;
+  overflow: hidden;
+}
+.code-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: var(--cpp-space-2) var(--cpp-space-4);
+  background: rgba(255, 255, 255, .06);
+  font-family: var(--cpp-mono); font-size: var(--cpp-text-sm); color: #94a3b8;
+}
+.code-head .dots3 { display: flex; gap: 5px; }
+.code-head .dots3 i { width: 10px; height: 10px; border-radius: 50%; background: #334155; }
+.code-body {
+  padding: var(--cpp-space-3) var(--cpp-space-4) var(--cpp-space-4);
+  font-family: var(--cpp-mono);
+  font-size: var(--cpp-text-code);
+  line-height: 1.75;
+  overflow-x: auto;
+}
+.cl { display: flex; white-space: pre; }
+.cl .ln { width: 2.2em; flex: none; text-align: right; padding-right: 1.1em; color: #475569; user-select: none; }
+.cl.hot { background: rgba(245, 158, 11, .16); border-radius: var(--cpp-radius-sm); }
+.k { color: #93c5fd; font-weight: 700; }   /* 关键字 */
+.t { color: #6ee7b7; }                     /* 类型/std */
+.n { color: #fbbf24; }                     /* 数字 */
+.s { color: #fca5a5; }                     /* 字符串 */
+.c { color: #64748b; font-style: italic; } /* 注释 */
+
+/* 唯一主按钮：开始编译（C 位、≥64px 高） */
+.cta {
+  margin-top: var(--cpp-space-2);
+  min-height: var(--cpp-tap-cta);
+  padding: var(--cpp-space-3) var(--cpp-space-6);
+  font-family: inherit; font-size: var(--cpp-text-xl); font-weight: 800;
+  color: #fff; background: var(--cpp-primary);
+  border: none; border-radius: var(--cpp-radius-pill);
+  cursor: pointer; box-shadow: var(--cpp-shadow-lg);
+  transition: transform var(--cpp-dur-fast) var(--cpp-ease-pop), box-shadow var(--cpp-dur-fast);
+}
+.cta:hover { transform: translateY(-2px) scale(1.02); }
+.cta:active { transform: translateY(1px); }
+.cta:focus-visible { outline: 4px solid var(--cpp-accent); outline-offset: 3px; }
+.cta code { font-family: var(--cpp-mono); font-size: .62em; font-weight: 400; opacity: .85; margin-left: 8px; }
+
+/* ============ 抽屉：非当前操作全部收起 ============ */
+.drawer-handle {
+  position: fixed;
+  right: calc(0px + env(safe-area-inset-right, 0px));
+  top: 50%; transform: translateY(-50%);
+  z-index: 60;
+  min-height: 96px; min-width: var(--cpp-tap-min);
+  border: none; cursor: pointer;
+  border-radius: var(--cpp-radius-md) 0 0 var(--cpp-radius-md);
+  background: var(--cpp-surface); color: var(--cpp-muted);
+  box-shadow: var(--cpp-shadow-md);
+  font-size: var(--cpp-text-sm); font-weight: 800;
+  writing-mode: vertical-rl; letter-spacing: .25em;
+  padding: var(--cpp-space-3) var(--cpp-space-1);
+  transition: color var(--cpp-dur-fast), transform var(--cpp-dur-base) var(--cpp-ease-out);
+}
+.drawer-handle:hover { color: var(--cpp-primary); }
+body.drawer-open .drawer-handle { transform: translate(calc(-1 * min(320px, 86vw)), -50%); }
+.drawer-mask {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(23, 32, 55, .35);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--cpp-dur-base);
+}
+body.drawer-open .drawer-mask { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 80;
+  width: min(320px, 86vw);
+  background: var(--cpp-surface);
+  box-shadow: -8px 0 24px rgba(23, 32, 55, .18);
+  transform: translateX(105%);
+  transition: transform var(--cpp-dur-base) var(--cpp-ease-out);
+  display: flex; flex-direction: column; gap: var(--cpp-space-3);
+  padding: calc(var(--cpp-space-4) + env(safe-area-inset-top, 0px)) var(--cpp-space-4)
+           calc(var(--cpp-space-4) + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+body.drawer-open .drawer { transform: none; }
+.drawer h3 { margin: 0; font-size: var(--cpp-text-sm); font-weight: 800; letter-spacing: .1em; color: var(--cpp-muted); }
+.tool-btn {
+  display: flex; align-items: center; gap: 10px;
+  min-height: var(--cpp-tap-min);
+  font-family: inherit; font-size: var(--cpp-text-base); font-weight: 700;
+  color: var(--cpp-ink); background: var(--cpp-bg);
+  border: 2px solid transparent; border-radius: var(--cpp-radius-md);
+  padding: var(--cpp-space-2) var(--cpp-space-3);
+  cursor: pointer; text-align: left;
+  transition: border-color var(--cpp-dur-fast), background var(--cpp-dur-fast);
+}
+.tool-btn:hover { border-color: var(--cpp-primary); background: var(--cpp-primary-soft); }
+.tool-btn small { font-family: var(--cpp-mono); font-weight: 400; color: var(--cpp-muted); margin-left: auto; }
+.out-box {
+  background: var(--cpp-code-bg); color: #a7f3d0;
+  font-family: var(--cpp-mono); font-size: var(--cpp-text-sm);
+  border-radius: var(--cpp-radius-md);
+  padding: var(--cpp-space-2) var(--cpp-space-3);
+  min-height: 46px; white-space: pre-wrap;
+}
+.drawer .close { align-self: flex-end; }
+
+/* 动画归零（CONTRACT §12） */
+body.no-anim *, body.no-anim *::before, body.no-anim *::after
+{ transition: none !important; animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+/* 矮视口（iPad 横屏浏览器栏挤压）微调：代码更紧凑 */
+@media (max-height: 640px) {
+  .code-body { line-height: 1.55; }
+  .act { gap: var(--cpp-space-2); }
+}
+</style>
+</head>
+<body data-theme="robot">
+  <div class="stage">
+    <!-- 舞台眉：位置感 + 主题切换，仅此而已 -->
+    <div class="brow">
+      <span class="who"><span class="mascot" data-t="mascot">🤖</span><span data-t="who">机器人伙伴</span></span>
+      <div class="dots" aria-label="第 4 个活动，共 8 个">
+        <i class="dot done"></i><i class="dot done"></i><i class="dot done"></i>
+        <i class="dot current"></i>
+        <i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i>
+      </div>
+      <div class="theme-switch" role="group" aria-label="切换主题">
+        <button class="ts-btn on" data-set-theme="robot" aria-label="机器人世界">🤖</button>
+        <button class="ts-btn" data-set-theme="pet" aria-label="宠物乐园">🐶</button>
+        <button class="ts-btn" data-set-theme="adventure" aria-label="探险王国">🎒</button>
+      </div>
+    </div>
+
+    <!-- 主区：一屏一活动 -->
+    <main class="act">
+      <div class="act-kicker">活动 4 / 8</div>
+      <h2 data-t="title">给机器人装上 5 颗能量豆</h2>
+      <p class="prompt">
+        <span>改一改这个</span>
+        <span class="term">变量 <code>variable</code></span>
+        <span>，让</span>
+        <span class="term">输出 <code>output</code></span>
+        <span>变成 5</span>
+      </p>
+
+      <div class="code-card">
+        <div class="code-head">
+          <span class="dots3"><i></i><i></i><i></i></span>
+          <span>energy.cpp</span>
+        </div>
+        <div class="code-body" aria-label="C++ 代码">
+<div class="cl"><span class="ln">1</span><span><span class="k">#include</span> <span class="s">&lt;iostream&gt;</span></span></div>
+<div class="cl"><span class="ln">2</span><span><span class="t">int</span> <span class="k">main</span>() {</span></div>
+<div class="cl hot"><span class="ln">3</span><span>  <span class="t">int</span> energy = <span class="n">3</span>;  <span class="c">// ← 能量豆的数量</span></span></div>
+<div class="cl"><span class="ln">4</span><span>  energy = energy + <span class="n">2</span>;</span></div>
+<div class="cl"><span class="ln">5</span><span>  <span class="t">std::cout</span> &lt;&lt; energy;</span></div>
+<div class="cl"><span class="ln">6</span><span>  <span class="k">return</span> <span class="n">0</span>;</span></div>
+<div class="cl"><span class="ln">7</span><span>}</span></div>
+        </div>
+      </div>
+
+      <button class="cta">⚡ 开始编译<code>Compile!</code></button>
+    </main>
+  </div>
+
+  <!-- 抽屉：单步/提示/重来/输出 全收在这里，默认收起 -->
+  <button class="drawer-handle" id="handle" aria-expanded="false" aria-controls="drawer">🧰 工具</button>
+  <div class="drawer-mask" id="mask"></div>
+  <aside class="drawer" id="drawer" aria-label="工具抽屉">
+    <button class="tool-btn close" id="closeBtn">✕ 收起</button>
+    <h3>慢慢看</h3>
+    <button class="tool-btn">👣 单步执行 <small>step</small></button>
+    <button class="tool-btn">💡 给点提示 <small>hint</small></button>
+    <button class="tool-btn">🔄 重新再来 <small>reset</small></button>
+    <h3>输出 output</h3>
+    <div class="out-box">5</div>
+  </aside>
+
+<script>
+var THEME_TEXT = {
+  robot:     { mascot: '🤖', who: '机器人伙伴', title: '给机器人装上 5 颗能量豆' },
+  pet:       { mascot: '🐶', who: '小狗搭档',   title: '给小狗搭档装上 5 个能量罐头' },
+  adventure: { mascot: '🎒', who: '探险搭档',   title: '给探险搭档装上 5 颗能量水晶' }
+};
+function setTheme(id) {
+  document.body.setAttribute('data-theme', id);
+  var dict = THEME_TEXT[id];
+  document.querySelectorAll('[data-t]').forEach(function (el) {
+    var key = el.getAttribute('data-t');
+    if (dict[key] !== undefined) el.textContent = dict[key];
+  });
+  document.querySelectorAll('.ts-btn').forEach(function (b) {
+    b.classList.toggle('on', b.getAttribute('data-set-theme') === id);
+  });
+}
+document.querySelectorAll('.ts-btn').forEach(function (b) {
+  b.addEventListener('click', function () { setTheme(b.getAttribute('data-set-theme')); });
+});
+
+/* 抽屉开合（剧场原则②：非当前操作收进抽屉） */
+function toggleDrawer(open) {
+  document.body.classList.toggle('drawer-open', open);
+  document.getElementById('handle').setAttribute('aria-expanded', String(open));
+}
+document.getElementById('handle').addEventListener('click', function () { toggleDrawer(true); });
+document.getElementById('closeBtn').addEventListener('click', function () { toggleDrawer(false); });
+document.getElementById('mask').addEventListener('click', function () { toggleDrawer(false); });
+</script>
+</body>
+</html>
