@@ -5,3 +5,7 @@ server/seed.json
 # QA 截图
 qa/shots/
 qa/.chrome*
+
+# 编辑器临时文件
+*.swp
+.DS_Store
