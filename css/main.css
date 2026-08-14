@@ -6,30 +6,82 @@
  * ========================================================================== */
 
 /* ---------------------------------------------------------------- tokens -- */
+/* 剧场模式 tokens（docs/design/design-tokens.md）：--cpp-* 为正源。
+ * 旧 --c-* 在 body 上映射到 --cpp-*（映射必须挂在 body：三主题色板挂在
+ * body[data-theme] 上，挂在 :root 的映射会解析不到主题色）。 */
 :root {
-  --c-bg: #f7f9fc;
-  --c-card: #fff;
-  --c-primary: #3b82f6;
-  --c-accent: #f59e0b;
-  --c-ok: #22c55e;
-  --c-err: #ef4444;
-  --c-ink: #1e293b;
-  --c-muted: #64748b;
-  --radius: 14px;
+  /* 字号阶梯（§1） */
+  --cpp-text-xs: 13px;
+  --cpp-text-sm: 15px;
+  --cpp-text-base: clamp(17px, 1vw + 12px, 19px);
+  --cpp-text-lg: clamp(19px, 1.2vw + 13px, 22px);
+  --cpp-text-xl: clamp(24px, 2vw + 14px, 32px);
+  --cpp-text-2xl: clamp(32px, 3.5vw + 16px, 48px);
+  --cpp-text-hero: clamp(44px, 6vw + 18px, 76px);
+  --cpp-text-code: clamp(16px, .9vw + 12px, 18px);
+  --cpp-font: system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB",
+              "Microsoft YaHei", sans-serif;
+  --cpp-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* 间距 / 圆角 / 触控（§2） */
+  --cpp-space-1: 4px;  --cpp-space-2: 8px;  --cpp-space-3: 12px; --cpp-space-4: 16px;
+  --cpp-space-5: 24px; --cpp-space-6: 32px; --cpp-space-7: 48px; --cpp-space-8: 64px;
+  --cpp-radius-sm: 8px; --cpp-radius-md: 14px; --cpp-radius-lg: 22px; --cpp-radius-pill: 999px;
+  --cpp-tap-min: 44px; --cpp-tap-cta: 64px;
+  /* 动效 / 阴影（§3） */
+  --cpp-dur-fast: 120ms; --cpp-dur-base: 200ms; --cpp-dur-slow: 320ms; --cpp-dur-ritual: 700ms;
+  --cpp-ease-out: cubic-bezier(.22, .8, .35, 1);
+  --cpp-ease-pop: cubic-bezier(.34, 1.4, .5, 1);
+  --cpp-shadow-sm: 0 2px 10px rgba(23, 32, 55, .08);
+  --cpp-shadow-md: 0 6px 18px rgba(23, 32, 55, .14);
+  --cpp-shadow-lg: 0 14px 40px rgba(23, 32, 55, .20);
+  /* 跨主题固定色（§4）：对/错语义 + 代码台深底（跨主题稳定视觉锚点） */
+  --cpp-ok: #16a34a; --cpp-ok-soft: #dcfce7;
+  --cpp-err: #dc2626; --cpp-err-soft: #fee2e2;
+  --cpp-code-bg: #0f172a; --cpp-code-ink: #e2e8f0;
+}
 
-  /* 派生 token（仅内部使用，主 token 见上） */
-  --c-primary-soft: #dbeafe;
-  --c-accent-soft: #fef3c7;
-  --c-ok-soft: #dcfce7;
-  --c-err-soft: #fee2e2;
+/* 三主题色板（§4）：主色随主题走，挂现有 body[data-theme] 机制 */
+body, body[data-theme="robot"] {
+  --cpp-bg: #edf3fb; --cpp-surface: #ffffff;
+  --cpp-primary: #2e6fe0; --cpp-primary-soft: #dbeafe;
+  --cpp-accent: #b45309; --cpp-accent-soft: #fef3c7;
+  --cpp-ink: #1e293b; --cpp-muted: #526079;
+}
+body[data-theme="pet"] {
+  --cpp-bg: #f0f8e9; --cpp-surface: #ffffff;
+  --cpp-primary: #4d8b1f; --cpp-primary-soft: #e3f3cf;
+  --cpp-accent: #b45309; --cpp-accent-soft: #fdeeca;
+  --cpp-ink: #22301b; --cpp-muted: #556349;
+}
+body[data-theme="adventure"] {
+  --cpp-bg: #faf4e6; --cpp-surface: #fffdf6;
+  --cpp-primary: #b45309; --cpp-primary-soft: #fde8cd;
+  --cpp-accent: #b91c1c; --cpp-accent-soft: #fbe3e0;
+  --cpp-ink: #33261a; --cpp-muted: #6b5b47;
+}
+
+/* 旧 token → 新 token 平滑映射（设计 tokens §7）：旧样式零改动吃到新色板 */
+body {
+  --c-bg: var(--cpp-bg);
+  --c-card: var(--cpp-surface);
+  --c-primary: var(--cpp-primary);
+  --c-accent: var(--cpp-accent);
+  --c-ok: var(--cpp-ok);
+  --c-err: var(--cpp-err);
+  --c-ink: var(--cpp-ink);
+  --c-muted: var(--cpp-muted);
+  --radius: var(--cpp-radius-md);
+  --c-primary-soft: var(--cpp-primary-soft);
+  --c-accent-soft: var(--cpp-accent-soft);
+  --c-ok-soft: var(--cpp-ok-soft);
+  --c-err-soft: var(--cpp-err-soft);
   --c-line: #e2e8f0;
-  --c-code-bg: #0f172a;
-  --c-code-ink: #e2e8f0;
-  --shadow: 0 2px 10px rgba(30, 41, 59, 0.08);
-  --shadow-lift: 0 6px 18px rgba(30, 41, 59, 0.14);
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
-          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
+  --c-code-bg: var(--cpp-code-bg);
+  --c-code-ink: var(--cpp-code-ink);
+  --shadow: var(--cpp-shadow-sm);
+  --shadow-lift: var(--cpp-shadow-md);
+  --font: var(--cpp-font);
+  --mono: var(--cpp-mono);
 }
 
 /* ------------------------------------------------------------ base reset -- */
@@ -39,7 +91,7 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 body {
   font-family: var(--font);
   /* 字号随视口缩放，但不低于儿童端正文最小 17px（CONTRACT §13） */
-  font-size: clamp(17px, 1vw + 12px, 19px);
+  font-size: var(--cpp-text-base);
   line-height: 1.6;
   color: var(--c-ink);
   background: var(--c-bg);
@@ -68,6 +120,13 @@ img, svg { max-width: 100%; }
 body.no-anim *, body.no-anim *::before, body.no-anim *::after {
   transition: none !important;
   animation: none !important;
+}
+/* 系统级减动效（设计 tokens §3 归零规则）：与 no-anim 同等归零 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 /* --------------------------------------------------------------- topbar -- */
@@ -196,7 +255,7 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
   color: #fff;
   box-shadow: 0 4px 12px rgba(59, 130, 246, .35);
 }
-.btn-primary:hover:not(:disabled) { background: #2f6fe0; }
+.btn-primary:hover:not(:disabled) { filter: brightness(.93); }
 .btn-accent {
   background: var(--c-accent);
   border-color: var(--c-accent);
@@ -821,18 +880,9 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
 body[data-theme="pet"] .brand .brand-dot { background: linear-gradient(135deg, #22c55e, #f59e0b); }
 body[data-theme="adventure"] .brand .brand-dot { background: linear-gradient(135deg, #f59e0b, #ef4444); }
 
-/* §13-3 主题氛围（轻量）：每主题一个 accent 色 + 页面/场景区淡背景色。
- * 场景内的能量容器/门造型三变体在 visualizer.js 注入的样式里（同用 data-theme）。 */
-body[data-theme="pet"] {
-  --c-accent: #65a30d;            /* 草地绿 accent */
-  --c-bg: #f3f9ee;                /* 乐园淡草色底 */
-}
-body[data-theme="adventure"] {
-  --c-accent: #d97706;            /* 火把橙 accent */
-  --c-bg: #faf6ec;                /* 王国淡岩色底 */
-}
-body[data-theme="pet"] .scene-goal { background: #ecfccb; }
-body[data-theme="adventure"] .scene-goal { background: #fdeed3; }
+/* §13-3 主题氛围：色板已全部由文件顶部的 --cpp-* 三主题 tokens 驱动
+ * （主色/强调/底色随主题走）；场景内的能量容器/门造型三变体仍在
+ * visualizer.js 注入的样式里（同用 data-theme）。 */
 
 /* ------------------------------------------------------------ 响应式 ----- */
 /* §13-2 断点：≥1200 三栏 / 768–1199 两栏+状态抽屉 / <768 单栏上下堆叠 */
@@ -877,6 +927,177 @@ body[data-theme="adventure"] .scene-goal { background: #fdeed3; }
   .toggle-btn { font-size: 13px; padding: 5px 10px; }
 }
 
+/* ===================================================================== */
+/* 剧场模式（docs/design/design-tokens.md §5 四原则）                      */
+/* ===================================================================== */
+
+/* ---- 顶栏主题切换器（红线：三主题切换器必须保留） ---- */
+.theme-switch {
+  display: flex; gap: 4px;
+  background: var(--c-bg);
+  border-radius: var(--cpp-radius-pill);
+  padding: 3px;
+}
+.ts-btn {
+  min-width: var(--cpp-tap-min); min-height: 38px;
+  border: 2px solid transparent; background: none;
+  border-radius: var(--cpp-radius-pill);
+  font-size: 19px; cursor: pointer;
+  transition: background var(--cpp-dur-fast), border-color var(--cpp-dur-fast);
+}
+.ts-btn.on { background: var(--c-primary-soft); border-color: var(--c-primary); }
+.ts-btn:hover { border-color: var(--c-primary); }
+
+/* ---- 原则①：一屏一活动，课程运行页页面不滚动，只有栏内滚 ---- */
+.view.stage-view {
+  display: flex; flex-direction: column;
+  overflow-y: hidden;
+  padding-top: 14px; padding-bottom: 10px;
+}
+.stage-view .lesson-grid { flex: 1 1 auto; min-height: 0; align-items: stretch; }
+.stage-view .lesson-grid > * {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---- 原则③：主操作只留一个大按钮（≥ --cpp-tap-cta），占 C 位 ---- */
+.stage-view .btnbar-wrap {
+  position: static; flex: none;
+  margin-top: 10px; padding: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: none;
+}
+.stage-view .btnbar { background: none; box-shadow: none; padding: 0; }
+.cta-main {
+  min-height: var(--cpp-tap-cta);
+  min-width: min(420px, 78vw);
+  padding: var(--cpp-space-3) var(--cpp-space-6);
+  font-family: inherit; font-size: var(--cpp-text-xl); font-weight: 800;
+  color: #fff; background: var(--c-primary);
+  border: none; border-radius: var(--cpp-radius-pill);
+  cursor: pointer; box-shadow: var(--cpp-shadow-lg);
+  transition: transform var(--cpp-dur-fast) var(--cpp-ease-pop),
+              box-shadow var(--cpp-dur-fast), filter var(--cpp-dur-fast);
+}
+.cta-main:hover:not(:disabled) { transform: translateY(-2px) scale(1.02); }
+.cta-main:active:not(:disabled) { transform: translateY(1px); }
+.cta-main:disabled { opacity: .55; cursor: wait; }
+.cta-main:focus-visible { outline: 4px solid var(--c-accent); outline-offset: 3px; }
+
+/* ---- 原则②：非当前操作收进右缘「🧰 工具」抽屉 ---- */
+.tool-handle {
+  position: fixed;
+  right: calc(0px + env(safe-area-inset-right, 0px));
+  top: 42%; transform: translateY(-50%);
+  z-index: 86;
+  min-height: 96px; min-width: var(--cpp-tap-min);
+  border: none; cursor: pointer;
+  border-radius: var(--cpp-radius-md) 0 0 var(--cpp-radius-md);
+  background: var(--c-card); color: var(--c-muted);
+  box-shadow: var(--cpp-shadow-md);
+  font-family: inherit; font-size: var(--cpp-text-sm); font-weight: 800;
+  writing-mode: vertical-rl; letter-spacing: .25em;
+  padding: var(--cpp-space-3) var(--cpp-space-1);
+  transition: color var(--cpp-dur-fast), transform var(--cpp-dur-base) var(--cpp-ease-out);
+}
+.tool-handle:hover { color: var(--c-primary); }
+body.tools-open .tool-handle { transform: translate(calc(-1 * min(320px, 86vw)), -50%); }
+.tool-mask {
+  position: fixed; inset: 0; z-index: 87;
+  background: rgba(23, 32, 55, .35);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--cpp-dur-base);
+}
+body.tools-open .tool-mask { opacity: 1; pointer-events: auto; }
+.tool-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 88;
+  width: min(320px, 86vw);
+  background: var(--c-card);
+  box-shadow: -8px 0 24px rgba(23, 32, 55, .18);
+  transform: translateX(105%);
+  transition: transform var(--cpp-dur-base) var(--cpp-ease-out);
+  display: flex; flex-direction: column; gap: var(--cpp-space-3);
+  padding: calc(var(--cpp-space-4) + env(safe-area-inset-top, 0px)) var(--cpp-space-4)
+           calc(var(--cpp-space-4) + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+body.tools-open .tool-drawer { transform: none; }
+.tool-drawer h3 {
+  margin: 0; font-size: var(--cpp-text-sm); font-weight: 800;
+  letter-spacing: .1em; color: var(--c-muted);
+}
+.tool-host { display: flex; flex-direction: column; gap: var(--cpp-space-2); }
+.tool-btn {
+  display: flex; align-items: center; gap: 10px;
+  min-height: var(--cpp-tap-min);
+  font-family: inherit; font-size: var(--cpp-text-base); font-weight: 700;
+  color: var(--c-ink); background: var(--c-bg);
+  border: 2px solid transparent; border-radius: var(--cpp-radius-md);
+  padding: var(--cpp-space-2) var(--cpp-space-3);
+  cursor: pointer; text-align: left;
+  transition: border-color var(--cpp-dur-fast), background var(--cpp-dur-fast);
+}
+.tool-btn:hover:not(:disabled) { border-color: var(--c-primary); background: var(--c-primary-soft); }
+.tool-btn:disabled { opacity: .45; cursor: not-allowed; }
+.tool-close { align-self: flex-end; }
+.tool-settings { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---- 原则④：活动切换 700ms 主题化过渡仪式（no-anim/减动效下 JS 直接跳切） ---- */
+.ritual-veil {
+  position: fixed; inset: 0; z-index: 94;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--cpp-space-3);
+  background: var(--c-bg);
+  pointer-events: none;
+  animation: ritual-veil var(--cpp-dur-ritual) var(--cpp-ease-out) both;
+}
+.ritual-veil .ritual-icon {
+  font-size: var(--cpp-text-hero);
+  animation: ritual-pop var(--cpp-dur-ritual) var(--cpp-ease-pop) both;
+}
+.ritual-veil .ritual-word { font-size: var(--cpp-text-xl); font-weight: 800; color: var(--c-ink); }
+@keyframes ritual-veil { 0% { opacity: 1; } 65% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes ritual-pop {
+  0% { transform: scale(.4) translateY(30px); }
+  55% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+/* 双保险：动画被归零时幕布绝不留在屏上（JS 已跳过创建，这里兜底） */
+body.no-anim .ritual-veil { display: none; }
+@media (prefers-reduced-motion: reduce) { .ritual-veil { display: none; } }
+
+/* ---- 双语术语 chip（设计 tokens §6）：中文为主 + 等宽英文 ---- */
+.cpp-term-chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  background: var(--c-primary-soft);
+  border-radius: var(--cpp-radius-pill);
+  padding: 1px 11px;
+  font-weight: 700; color: var(--c-ink);
+  white-space: nowrap;
+}
+.cpp-term-chip code {
+  font-family: var(--mono);
+  font-size: var(--cpp-text-sm);
+  font-weight: 400;
+  color: var(--c-primary);
+}
+
+/* ---- 剧场模式响应式：窄竖屏（手机/iPad 竖持）退回可滚动布局 ---- */
+@media (max-width: 767px) {
+  .view.stage-view { overflow-y: auto; }
+  .stage-view .lesson-grid > * { overflow-y: visible; }
+  .stage-view .btnbar-wrap { position: sticky; bottom: 0; }
+  .cta-main { min-width: 0; width: 100%; font-size: var(--cpp-text-lg); }
+}
+/* 矮视口（iPad 横屏被浏览器栏挤压）：收紧舞台留白 */
+@media (max-height: 640px) {
+  .view.stage-view { padding-top: 8px; }
+  .stage-view .panel { padding: 10px 12px; }
+  .cta-main { min-height: 56px; }
+}
+
 /* 触控目标 ≥44px（§13-2；.btn/.chip 本身已 ≥46px） */
 @media (pointer: coarse) {
   .btn-sm { min-height: 44px; }
@@ -888,6 +1109,8 @@ body[data-theme="adventure"] .scene-goal { background: #fdeed3; }
   .code-line.clickable { min-height: 44px; align-items: center; }
   .slot-chip { min-height: 44px; }
   .theme-card { min-height: 44px; }
+  .ts-btn { min-height: 44px; }               /* 主题切换（剧场模式） */
+  .tool-btn { min-height: 48px; }             /* 工具抽屉按钮（剧场模式） */
   .cpp-id { padding: 8px 2px; }              /* 点按查释义的小热区 */
   .var-card .vc-name { padding: 8px 0; }      /* 点按查释义的小热区 */
   .teacher-link { display: inline-block; padding: 14px 10px; }
