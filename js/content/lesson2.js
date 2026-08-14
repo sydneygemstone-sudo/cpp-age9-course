@@ -178,7 +178,7 @@ var CppLab = (typeof window !== 'undefined')
             successCriteria: '孩子说出一个数字并运行验证；即使猜错，能在看到输出后说出"能量卡里存的是最后那个数"。'
           },
           S: {
-            intro: '欢迎回来！上次的能量还存在 energy 这个变量盒子里。先预测它现在的值，再运行程序检查你的记忆准不准。',
+            intro: '欢迎回来！上次的能量还存在 energy 这个[[变量|variable]]盒子里。先预测它现在的值，再运行程序检查你的记忆准不准。',
             dynamic: { initFromLesson1Energy: true },
             program: [
               decl('int', 'energy', lit(6)),
@@ -369,7 +369,7 @@ var CppLab = (typeof window !== 'undefined')
         visualModel: 'door',
         variants: {
           E: {
-            intro: '这是真假检测器：条件放进去，它只会亮两种灯——绿灯 ✓ 是真，红灯 ✗ 是假。现在能量是 5，我们把 energy >= 5 放进去，单步走一步看一步。',
+            intro: '这是真假检测器：[[条件|condition]]放进去，它只会亮两种灯——绿灯 ✓ 是真，红灯 ✗ 是假。现在能量是 5，我们把 energy >= 5 放进去，单步走一步看一步。',
             program: coreProgram(),
             interaction: {
               checkpoints: [
@@ -419,7 +419,7 @@ var CppLab = (typeof window !== 'undefined')
             successCriteria: '两个检查点都答对，并能解释 >= 里的"="就是"正好等于也算"。'
           },
           A: {
-            intro: '升级挑战：这扇门要同时检查两个小问题——能量够不够（energy >= 5），钥匙有没有（hasKey）。两个都真，整个条件才是真。',
+            intro: '升级挑战：这扇门要同时检查两个小问题——能量够不够（energy >= 5），钥匙有没有（hasKey）。两个都真，整个[[条件|condition]]才是真。',
             program: andProgram(),
             interaction: {
               checkpoints: [
@@ -541,7 +541,7 @@ var CppLab = (typeof window !== 'undefined')
             successCriteria: '孩子预测只出 1 个单词，两个检查点都答对，并能指着灰色分支说"这边没跑"。'
           },
           S: {
-            intro: '岔路口规则：条件真，走 if 块；条件假，走 else 块；一次只走一边。先预测输出，再单步验证你的想法。',
+            intro: '岔路口规则：条件真，走 if 块；条件假，走 else 块；一次只走一边。先预测[[输出|output]]，再单步验证你的想法。',
             program: coreProgram(),
             interaction: {
               checkpoints: [
@@ -796,7 +796,7 @@ var CppLab = (typeof window !== 'undefined')
         visualModel: 'door',
         variants: {
           E: {
-            intro: '刚才都是我们的动画在演。这次来真的：把代码寄给一台真正会编译 C++ 的电脑。先猜猜它会回一个什么单词。',
+            intro: '刚才都是我们的动画在演。这次来真的：把代码寄给一台真正会[[编译|compile]] C++ 的电脑。先猜猜它会回一个什么单词。',
             program: coreProgram(),
             interaction: {
               question: '真正的 C++ 编译器运行这段代码后，会打出哪个单词？',
@@ -834,7 +834,7 @@ var CppLab = (typeof window !== 'undefined')
               ]
             },
             prediction: {
-              question: 'energy 是 5，真实编译运行后屏幕会打出什么？',
+              question: 'energy 是 5，真实[[编译|compile]]运行后屏幕会打出什么？',
               inputType: 'choice',
               options: [
                 { id: 'open', label: 'OPEN——条件为真，走 if 块' },
@@ -845,7 +845,7 @@ var CppLab = (typeof window !== 'undefined')
             successCriteria: '先用能量 5 完成一次真实编译、亲眼看到 OPEN；再把能量槽改成 4（或任何小于 5 的数）达成 CHARGE 目标并再次真实编译，能说出"真实输出跟着岔路口换了条路"。'
           },
           A: {
-            intro: '加速挑战：这段代码有两个条件用 && 连着——能量够、钥匙在，两个都真门才开。预测真实编译的输出，特别注意 energy 正好踩在边界 5 上。',
+            intro: '加速挑战：这段代码有两个条件用 && 连着——能量够、钥匙在，两个都真门才开。预测真实编译的[[输出|output]]，特别注意 energy 正好踩在边界 5 上。',
             program: andProgram(),
             interaction: {
               question: 'energy 是 5、hasKey 是 true，真实编译运行后会打出什么？',
@@ -901,6 +901,120 @@ var CppLab = (typeof window !== 'undefined')
         compilerCheck: {
           enabled: true,
           expectedStdout: 'OPEN'
+        }
+      },
+
+      /* =====================================================================
+       * 活动 6.5 · 52–55 分钟 · 代码的家（ordering）——侧线「文件概念 + godbolt 自主操作」
+       * 依 Dean 定案「侧线内容按关卡编织进各课」插入：紧跟活动 6 的首次真实编译，
+       * 孩子刚看到"代码寄给真编译器"，顺势揭示编译器的家 godbolt.org 并亲手操作。
+       * order 取 6.5 插队排序，不改动既有活动的 order/minutes（时间与活动 7/8
+       * 弹性共享，节奏由教师现场把控）。动手部分在浏览器/访达里完成，故各变体
+       * program 为 null、不参与编译校验。E 档用 activityTypeOverride 降为 choice
+       * 认概念；A 档加追问「.cpp 后缀是什么意思」。
+       * =================================================================== */
+      {
+        id: 'lesson2-09-file-workshop',
+        lessonId: 'lesson2',
+        order: 6.5,
+        minutes: [52, 55],
+        title: '代码的家：文件与工坊',
+        concept: '代码不是只住在屏幕里——它保存在以 .cpp 结尾的文件中，随时能再打开。',
+        learningObjective: '孩子能说出代码保存在 .cpp 文件里，并亲手完成：新建「我的代码」文件夹 → 打开 godbolt.org → 粘贴代码 → 自己点编译。',
+        childPrompt: '机器人有个小秘密：刚才帮我们检查代码的真编译器，住在一个叫 godbolt.org 的代码工坊里！这次换你亲自出马——先给代码安一个家（[[文件|file]]），再去工坊自己点一次编译！',
+        dimensions: ['D12', 'D2'],
+        activityType: 'ordering',
+        visualModel: 'scene',
+        variants: {
+          E: {
+            intro: '先想一个小问题：我们写好的代码，关掉电脑之后去哪儿了？机器人提示你：代码可以住进一个有名字的"家"，下次还能找到它。',
+            activityTypeOverride: 'choice',
+            program: null,
+            interaction: {
+              question: '想把写好的代码留住，应该把它放在哪里？',
+              options: [
+                { id: 'file', label: '保存在一个以 .cpp 结尾的文件里，下次还能打开', correct: true },
+                { id: 'screen', label: '让它一直留在屏幕上，关机它自己会记得' },
+                { id: 'head', label: '记在脑子里就行，电脑不用管' }
+              ],
+              multi: false
+            },
+            prediction: null,
+            successCriteria: '孩子选出"保存在 .cpp 文件里"；随后在老师陪同下看一遍 godbolt.org 里的舱门程序，并亲手按一次编译按钮（其余步骤老师可代劳）。'
+          },
+          S: {
+            intro: '出发去代码工坊！四张任务卡散了——先把它们排成正确的顺序，再照着一步步做：这次鼠标全程由你来点。',
+            program: null,
+            interaction: {
+              items: [
+                { id: 'card-folder', label: '在电脑上新建一个文件夹，取名「我的代码」——这是代码的家', icon: '📁' },
+                { id: 'card-visit', label: '打开浏览器，去代码工坊 godbolt.org', icon: '🌐' },
+                { id: 'card-paste', label: '把舱门程序的代码贴进左边的代码框', icon: '📋' },
+                { id: 'card-compile', label: '自己点编译，看右边打出结果', icon: '▶️' }
+              ],
+              correctOrder: ['card-folder', 'card-visit', 'card-paste', 'card-compile']
+            },
+            prediction: null,
+            successCriteria: '排出正确顺序并亲手完成四步；能说出"代码保存下来会是 door.cpp 这样的文件，放在我的文件夹里"。'
+          },
+          A: {
+            intro: '工坊高级任务：四步全部自己来，一步都不用老师帮。完成后还有一道侦探题——文件名 door.cpp 里那条"小尾巴"到底是什么意思？',
+            program: null,
+            interaction: {
+              items: [
+                { id: 'card-folder', label: '在电脑上新建一个文件夹，取名「我的代码」——这是代码的家', icon: '📁' },
+                { id: 'card-visit', label: '打开浏览器，去代码工坊 godbolt.org', icon: '🌐' },
+                { id: 'card-paste', label: '把舱门程序的代码贴进左边的代码框', icon: '📋' },
+                { id: 'card-compile', label: '自己点编译，看右边打出结果', icon: '▶️' }
+              ],
+              correctOrder: ['card-folder', 'card-visit', 'card-paste', 'card-compile']
+            },
+            prediction: {
+              question: 'door.cpp 这个[[文件|file]]的名字里，后缀「.cpp」是什么意思？',
+              inputType: 'choice',
+              options: [
+                { id: 'kind', label: '它是文件的"身份牌"，告诉电脑：这里面装的是 C++ 代码' },
+                { id: 'deco', label: '它是随便加的装饰，删掉也没有任何影响' },
+                { id: 'size', label: '它表示这个文件有多大' }
+              ],
+              correct: 'kind'
+            },
+            successCriteria: '独立完成四步操作；能说出".cpp 后缀告诉电脑这是 C++ 代码文件"，并能在文件夹里再次找到自己的文件。'
+          }
+        },
+        hintLadder: [
+          { level: 'H1', text: '想一想：画好的画要放进画夹才不会丢——写好的代码也需要一个"家"。它的家叫什么、以什么结尾？' },
+          { level: 'H2', text: '排队小窍门：先安家，再出门。代码的家（文件夹）建好了，才轮到去工坊干活。' },
+          { level: 'H3', text: '到了工坊先别急着点编译——空空的工坊什么也编不了。想想点编译之前还差哪一步？' },
+          { level: 'H4', text: '打个比方：寄信要先写好信、装进信封，最后才投进邮筒。代码也要先贴进工坊，才轮到按编译。' },
+          { level: 'H5', text: '教师提示：把四张卡念成口诀「建家 → 进工坊 → 贴代码 → 点编译」，让孩子跟读一遍再排；实操时老师只指屏幕不碰鼠标。', teacherOnly: true }
+        ],
+        evidenceRule: {
+          dimension: 'D12',
+          note: '电脑操作熟练度：新建文件夹、打开网址、粘贴、点编译四步中哪些能独立完成？记录需要代劳的步骤。（断网未能完成 godbolt 实操时需注明。）'
+        },
+        teacherCards: {
+          truth: 'App 里的「真实C++验证」按的正是 godbolt.org（Compiler Explorer）的门铃——本活动是把幕后工坊亮出来让孩子亲手敲门。代码保存在以 .cpp 结尾的文件里，后缀告诉电脑"这是 C++ 源代码"；文件住在文件夹里、文件夹住在电脑里。若断网：文件夹与 .cpp 概念照做，godbolt 实操留作家庭任务，绝不假装编译成功（与活动 6 同一原则）。',
+          demo: '老师先用 30 秒完整演示四步，再把鼠标交给孩子从头做一遍。贴的代码就用本课舱门程序（在活动 6 点"查看完整程序"复制）。编译成功后，让孩子把 godbolt 右侧的输出与 App 里的结果对照着念一遍。',
+          questions: [
+            '你在 godbolt 点的编译，和 App 里按"真实C++验证"，是同一位裁判吗？',
+            '「我的代码」文件夹里现在放着什么？下周打开电脑它还在吗？',
+            '如果把文件名改成 door.txt，电脑还知道里面是 C++ 代码吗？'
+          ],
+          misconceptions: [
+            '认为代码只存在于 App 或屏幕里，关机就消失——缺少"保存成文件"的概念。',
+            '认为 .cpp 只是名字的装饰，改成什么后缀都不影响电脑认出它。'
+          ],
+          rescueSteps: [
+            '先只做一步：一起新建「我的代码」文件夹，亲眼看着它出现在桌面上。',
+            '老师把 godbolt.org 打开到位，只让孩子做"贴代码 + 点编译"两步，成功一次再补前两步。',
+            '把四张卡按口诀"建家 → 进工坊 → 贴代码 → 点编译"边念边重排一遍，排好再上手。'
+          ],
+          extension: '追问：断网的时候 godbolt 去不了，你的代码文件还在吗？（在——文件住在你的电脑里，工坊只是帮忙编译的地方。）还可以看看 godbolt 右边那些"天书"：那是编译器把 C++ 翻译给机器听的语言（汇编）。'
+        },
+        compilerCheck: {
+          enabled: false,
+          expectedStdout: ''
         }
       },
 

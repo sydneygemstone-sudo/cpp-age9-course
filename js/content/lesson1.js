@@ -3,8 +3,11 @@
  * owner: content-lesson1（CONTRACT §1）
  *
  * 第 1 课《机器人能量站：命令怎样改变世界》（方案 §7 全部）。
- * 8 个活动严格对应方案 §7.4 的 60 分钟时间表；三档变体按 §7.5；
+ * 8 个正课活动严格对应方案 §7.4 的 60 分钟时间表；三档变体按 §7.5；
  * 教师真相卡吸收 §7.6；提示阶梯语义按 §11.3。
+ * 另有 1 个「登机仪式」开场活动（order 0，Mac 基础操作侧线，Dean 定案
+ * 「侧线内容按关卡编织进各课」）：开机登录 → 认识 Dock/访达 → 浏览器
+ * 输网址连老师的服务器，压在开场 0–3 分钟内完成。
  *
  * 内容与引擎分离（CONTRACT §14.8）：本文件只有数据，不含任何执行逻辑。
  * 纯逻辑文件：顶层不碰 document/window，Node 可直接 require 用于测试。
@@ -41,6 +44,107 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
       assign('energy', bin('+', vr('energy'), bin('*', vr('shield'), lit(2))))
     ];
   }
+
+  /* ================= 活动 0 · 开场 0–3 分钟 · 登机仪式（Mac 基础操作侧线） ================= */
+
+  var act0 = {
+    id: 'lesson1-00-boarding-ritual',
+    lessonId: 'lesson1',
+    order: 0,
+    minutes: [0, 3],
+    title: '登机仪式',
+    concept: '上课第一步靠自己：开机登录自己的账户，认识 Dock 和访达，用浏览器输网址连上老师的服务器',
+    learningObjective: '能独立完成开机、登录 macOS 账户、在 Dock 找到浏览器并输入网址连上老师的服务器（对应 D12 电脑操作熟练度；Mac 基础操作侧线第 1 关）',
+    childPrompt: '飞船不会自己起飞——指挥官要亲手完成起飞前的仪式！把下面的步骤排成正确的队伍，再照着在真电脑上做一遍：连上老师的服务器，机器人正在能量站等你！',
+    dimensions: ['D12', 'D2'],
+    activityType: 'ordering',
+    visualModel: 'scene',
+    variants: {
+      E: {
+        intro: '机器人的声音从能量站传来：「指挥官，先启动你的飞船——就是你面前这台电脑！照着仪式一步一步来，我在这儿等你。」',
+        program: null,
+        interaction: {
+          items: [
+            { id: 'power-on', label: '按下电源键，把电脑唤醒', icon: '🔌' },
+            { id: 'login', label: '点自己的头像，输入密码，登录自己的账户', icon: '👤' },
+            { id: 'browser-url', label: '打开浏览器，输入老师给的网址，连上能量站', icon: '🌐' }
+          ],
+          correctOrder: ['power-on', 'login', 'browser-url']
+        },
+        prediction: null,
+        successCriteria: '排出正确顺序，并在真电脑上照着完成一遍：开机、登录自己的账户、连上老师的服务器看到能量站页面（操作可由老师念口令、孩子动手）'
+      },
+      S: {
+        intro: '机器人发来一张「起飞检查单」：「这次是完整版仪式——四步一步都不能乱！排好之后在真电脑上做一遍，每做一步就指给我看：这是哪张卡？」',
+        program: null,
+        interaction: {
+          items: [
+            { id: 'power-on', label: '按下电源键，把电脑唤醒', icon: '🔌' },
+            { id: 'login', label: '点自己的头像，输入密码，登录自己的账户', icon: '👤' },
+            { id: 'dock-browser', label: '在屏幕下方的 Dock 里认一认：笑脸是访达，指南针是浏览器——点开浏览器', icon: '🧭' },
+            { id: 'type-url', label: '在最上面的地址栏输入老师给的网址，按回车连上能量站', icon: '🌐' }
+          ],
+          correctOrder: ['power-on', 'login', 'dock-browser', 'type-url']
+        },
+        prediction: null,
+        successCriteria: '独立排出四步并在真机上完成；能指出 Dock 在屏幕的哪里、访达和浏览器分别是哪个图标'
+      },
+      A: {
+        intro: '机器人神秘地说：「高级指挥官不光会做，还知道为什么。先回答一个通讯问题，再把五步仪式排好——全对了才发起飞许可！」',
+        program: null,
+        interaction: {
+          items: [
+            { id: 'power-on', label: '按下电源键，把电脑唤醒', icon: '🔌' },
+            { id: 'login', label: '点自己的头像，输入密码，登录自己的账户', icon: '👤' },
+            { id: 'check-wifi', label: '看看屏幕右上角的小扇形：Wi-Fi 连上了吗', icon: '📶' },
+            { id: 'dock-browser', label: '在屏幕下方的 Dock 里认一认：笑脸是访达，指南针是浏览器——点开浏览器', icon: '🧭' },
+            { id: 'type-url', label: '在最上面的地址栏输入老师给的网址，按回车连上能量站', icon: '🌐' }
+          ],
+          correctOrder: ['power-on', 'login', 'check-wifi', 'dock-browser', 'type-url']
+        },
+        prediction: {
+          question: '我们要在浏览器里输入老师给的网址（像 http://192.168.x.x:8099 这样）。网址的作用是什么？',
+          inputType: 'choice',
+          options: [
+            { id: 'address', label: '它是一个地址，告诉浏览器去哪台电脑上找能量站的页面' },
+            { id: 'password', label: '它是给机器人充电的密码' },
+            { id: 'anything', label: '随便输点什么都能打开，网址不重要' }
+          ],
+          correct: 'address'
+        },
+        successCriteria: '答出网址是「告诉浏览器去哪找页面的地址」；独立排出五步并在真机完成；能用一句话说出浏览器是干什么的（一个专门打开网页的程序）'
+      }
+    },
+    hintLadder: [
+      { level: 'H1', text: '任务是把起飞仪式的步骤排好。想一想：电脑还没醒的时候，别的事都做不了——哪一步必须排第一？' },
+      { level: 'H2', text: '登录就像亮出自己的登机牌：电脑醒了之后、做别的事情之前，先告诉它「我是谁」。' },
+      { level: 'H3', text: '最后一步一定是「输网址、连上能量站」。先把第一步和最后一步定好，中间的就好排了。' },
+      { level: 'H4', text: '打个比方：先推开家门，再和家人打招呼，然后才能坐到书桌前打开作业本。开机、登录、打开浏览器，是不是同一个道理？' },
+      { level: 'H5', text: '（教师解锁）教师把前两步排好，并在真机上演示到登录完成；让孩子接着排完剩下的步骤，再亲手在 Dock 里点开浏览器、输入网址。', teacherOnly: true }
+    ],
+    evidenceRule: { dimension: 'D12', note: '观察真机操作的独立程度：开机/输密码需要老师代劳记 1；能独立完成但找 Dock、输网址较慢记 2；全程独立流畅、还能说出浏览器和网址是什么记 3。打字慢不扣分，只记录方式' },
+    teacherCards: {
+      truth: '这一关教的是真实电脑操作，不是编程：开机（电源键）、登录 macOS 账户（点头像输密码）、认识 Dock（屏幕下方的常用程序架，笑脸图标是访达=文件管理器）、用浏览器打开网址。网址 http://<老师IP>:8099/index.html 的意思是「去老师这台电脑的 8099 号门取页面」；浏览器是专门把网页取来并显示出来的程序。',
+      demo: '把学生机关机后交给孩子，从按电源键开始老师全程只动口不动手；孩子每完成一步，就回到排好的卡片前问「你刚才做的是哪张卡？」。连上之后让孩子对比两块屏幕：学生机和老师机显示的是同一个能量站。',
+      questions: [
+        'Dock 在屏幕的哪里？访达是哪个图标（那张笑脸）？浏览器又是哪个？',
+        '网址里的那串数字（老师的 IP）是谁的地址？如果输错一个数字会怎样？',
+        '浏览器和能量站页面，哪个是「程序」、哪个是「网页」？'
+      ],
+      misconceptions: [
+        '以为按电源键会弄坏电脑，不敢自己开关机',
+        '把网址当「咒语」，以为随便输点什么也能打开（不理解地址的含义）',
+        '把浏览器当成「互联网本身」，分不清程序和它打开的网页'
+      ],
+      rescueSteps: [
+        '孩子卡在开机或密码时，老师念一步、孩子做一步，绝不代按。',
+        '找不到浏览器时，先带孩子认 Dock：「屏幕最下面这一排就是常用程序架」，再从左到右找那只指南针。',
+        '网址太长输错时，改成老师读一段、孩子输一段，输完一起逐字符检查再按回车。'
+      ],
+      extension: '追问：如果老师的电脑关机了，你的浏览器还能连上能量站吗？（引出「服务器」概念：页面住在老师的电脑上，它得开着才行）'
+    },
+    compilerCheck: { enabled: false, expectedStdout: '' }
+  };
 
   /* ================= 活动 1 · 0–5 分钟 · 返回任务世界 ================= */
 
@@ -247,7 +351,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     title: '能量盒',
     concept: '变量是一个只装「现在的值」的盒子；赋值是先读旧值、算出新值、再写回去',
     learningObjective: '能追踪一个变量的当前值，并说明赋值是「把计算结果存回变量」（对应目标 2、3）',
-    childPrompt: '看，energy 变成了一个真正的盒子！一行一行地走，盯紧盒子：旧数字淡出、新数字住进来。每到检查点，报出盒子里现在的数！',
+    childPrompt: '看，energy 这个[[变量|variable]]变成了一个真正的盒子！一行一行地走，盯紧盒子：旧数字淡出、新数字住进来。每到检查点，报出盒子里现在的数！',
     dimensions: ['D3', 'D4'],
     activityType: 'trace',
     visualModel: 'energy',
@@ -403,7 +507,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     title: '代码透视',
     concept: '图块和 C++ 代码是同一件事的两种写法；输出只是展示状态，不会改变状态',
     learningObjective: '能把可视化动作对应到具体的 C++ 代码行，并说明输出只是展示、不修改变量（对应目标 4、5 的观察部分）',
-    childPrompt: '戴上透视眼镜！图块慢慢变成了真正的 C++ 代码。点一点每一行，场景里会亮起它做的事——找出每一行的真面目吧。',
+    childPrompt: '戴上透视眼镜！图块慢慢变成了真正的 C++ 代码。点一点每一行，场景里会亮起它做的事——找出每一行的真面目吧。有的行会改变盒子，有的行只负责[[输出|output]]，把数字亮到屏幕上。',
     dimensions: ['D2', 'D8'],
     activityType: 'trace',
     visualModel: 'energy',
@@ -671,7 +775,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
     title: '真实 C++ 验证',
     concept: '刚才的动画是模拟；真正的 C++ 编译器会运行同一段程序，结果应该和手算一致',
     learningObjective: '完成一次真实 C++ 编译验证，理解模拟与真实运行的关系（对应目标 6：至少完成一次真实 C++ 编译验证）',
-    childPrompt: '重要时刻到了！我们把完整的 C++ 程序发射给一台真正的编译器。发射前先写下你的预测——看看真机器吐出的数字，和你算的一不一样！',
+    childPrompt: '重要时刻到了！我们把完整的 C++ 程序发射给一台真正的编译器，请它[[编译|compile]]再运行。发射前先写下你的预测——看看真机器吐出的数字，和你算的一不一样！',
     dimensions: ['D3', 'D9'],
     activityType: 'predict',
     visualModel: 'energy',
@@ -959,7 +1063,7 @@ var CppLab = (typeof window !== 'undefined') ? (window.CppLab = window.CppLab ||
   var lesson1 = {
     lessonId: 'lesson1',
     title: '机器人能量站：命令怎样改变世界',
-    activities: [act1, act2, act3, act4, act5, act6, act7, act8]
+    activities: [act0, act1, act2, act3, act4, act5, act6, act7, act8]
   };
 
   CppLab.content = CppLab.content || {};
