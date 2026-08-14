@@ -792,26 +792,73 @@ var CppLab = (typeof window !== 'undefined')
    * 课程运行页（三栏）
    * ==================================================================== */
 
+  /**
+   * 进度点（剧场模式导航）：点圆点直接跳到任意活动——纯浏览动作，
+   * 不看完成状态（从卡住的活动逃生正是它的用途）。当前点禁用（跳回原地无意义）。
+   */
   function buildProgressDots() {
     var engine = S.engine;
     var dots = el('div', 'progress-dots');
+    dots.setAttribute('role', 'group');
+    dots.setAttribute('aria-label', '任务进度，点圆点直接过去');
     var states = ((session().lessons || {})[S.lessonId] || {}).activityStates || {};
     engine.getActivities().forEach(function (a, i) {
-      var d = el('span', 'dot');
-      if (states[a.id] && states[a.id].status === 'done') d.classList.add('done');
-      if (i === engine.currentIndex) d.classList.add('current');
-      d.title = '任务 ' + (i + 1);
+      var done = !!(states[a.id] && states[a.id].status === 'done');
+      var cur = i === engine.currentIndex;
+      var d = el('button', 'dot');
+      d.type = 'button';
+      if (done) d.classList.add('done');
+      if (cur) d.classList.add('current');
+      d.title = '任务 ' + (i + 1) + (cur ? '（在这里）' : (done ? '（已完成）' : ''));
+      d.setAttribute('aria-label', '去任务 ' + (i + 1) + (cur ? '，现在在这里' : ''));
+      if (cur) d.setAttribute('aria-current', 'true');
+      d.disabled = cur;
+      d.addEventListener('click', function () {
+        gotoActivity(i, { icon: '🚀', word: '去第 ' + (i + 1) + ' 个任务～' });
+      });
       dots.appendChild(d);
     });
     return dots;
+  }
+
+  /**
+   * 舞台眉导航（剧场模式）：← 进度点 →。前进/后退不受当前活动完成状态限制
+   * （目的正是从卡住的活动逃生）；到边界对应按钮禁用。跳转逻辑见 gotoActivity。
+   */
+  function buildStageNav() {
+    var engine = S.engine;
+    var wrap = el('div', 'stage-nav');
+    wrap.setAttribute('role', 'group');
+    wrap.setAttribute('aria-label', '任务导航');
+    var prev = el('button', 'stage-nav-btn stage-nav-prev', '←');
+    prev.type = 'button';
+    prev.title = '上一个任务';
+    prev.setAttribute('aria-label', '上一个任务');
+    prev.addEventListener('click', function () {
+      gotoActivity(engine.currentIndex - 1, { icon: '🧭', word: '回头看看上一个任务～' });
+    });
+    var next = el('button', 'stage-nav-btn stage-nav-next', '→');
+    next.type = 'button';
+    next.title = '下一个任务';
+    next.setAttribute('aria-label', '下一个任务');
+    next.addEventListener('click', function () {
+      gotoActivity(engine.currentIndex + 1, { icon: '🚀', word: '起飞！去下一个任务～' });
+    });
+    var acts = engine.getActivities();
+    prev.disabled = engine.currentIndex <= 0;
+    next.disabled = engine.currentIndex + 1 >= acts.length;
+    wrap.appendChild(prev);
+    wrap.appendChild(buildProgressDots());
+    wrap.appendChild(next);
+    return wrap;
   }
 
   function renderLesson() {
     S.view = 'lesson';
     stopRunTimer();
     clearNode(S.root);
-    // 剧场模式：顶栏退化为舞台眉（进度点 + 主题切换），开关收进工具抽屉
-    S.root.appendChild(buildTopbar({ title: T(packTitle(S.lessonId)), dots: buildProgressDots(), compact: true }));
+    // 剧场模式：顶栏退化为舞台眉（← 进度点 → + 主题切换），开关收进工具抽屉
+    S.root.appendChild(buildTopbar({ title: T(packTitle(S.lessonId)), dots: buildStageNav(), compact: true }));
 
     var view = el('div', 'view stage-view');
     var grid = el('div', 'lesson-grid');
@@ -1179,7 +1226,21 @@ var CppLab = (typeof window !== 'undefined')
     var top = document.querySelector('.topbar');
     if (!top) return;
     var old = top.querySelector('.progress-dots');
-    if (old) top.replaceChild(buildProgressDots(), old);
+    // .progress-dots 在 .stage-nav 里（孙节点）：必须在它真父节点上替换，
+    // 用 top.replaceChild 会抛 NotFoundError（P0，审查 A1）
+    if (old && old.parentNode) old.parentNode.replaceChild(buildProgressDots(), old);
+    refreshStageNav();
+  }
+
+  /** 舞台眉 ← → 的边界禁用态：跟随 currentIndex（进度点重画后同一时机刷新）。 */
+  function refreshStageNav() {
+    var top = document.querySelector('.topbar');
+    if (!top || !S.engine || S.view !== 'lesson') return;
+    var prev = top.querySelector('.stage-nav-prev');
+    var next = top.querySelector('.stage-nav-next');
+    var n = S.engine.getActivities().length;
+    if (prev) prev.disabled = S.engine.currentIndex <= 0;
+    if (next) next.disabled = S.engine.currentIndex + 1 >= n;
   }
 
   function allowedCodeModes() {
@@ -1981,13 +2042,14 @@ var CppLab = (typeof window !== 'undefined')
     (inter.items || []).forEach(function (it) { if (it) byId[it.id] = it; });
     var ids = (inter.correctOrder || []).slice();
     var gap = animDelay();
+    var viz = S.viz;   // 演出只属于发起它的活动；换台后（S.viz 已换）不再上演
     ids.forEach(function (id, i) {
       var it = byId[id] || { label: String(id) };
       var text = '第 ' + (i + 1) + ' 步：' + (it.icon ? TIcon(it.icon) + ' ' : '') + T(it.label) + '！' +
         (i === ids.length - 1 ? ' 任务完成！' : '');
       var show = function () {
-        if (!S.viz) return;
-        try { S.viz.applyTraceEntry({ kind: 'seq-demo', index: i, description: text }); } catch (e) { /* 忽略 */ }
+        if (S.viz !== viz) return;
+        try { viz.applyTraceEntry({ kind: 'seq-demo', index: i, description: text }); } catch (e) { /* 忽略 */ }
       };
       if (gap === 0) {
         if (i === ids.length - 1) show(); // 动画关闭：只展示完成旁白
@@ -2868,7 +2930,7 @@ var CppLab = (typeof window !== 'undefined')
       for (var j = 0; j < cps.length; j++) {
         if (cps[j].afterStep === cp.afterStep && !ui.cpResults[j]) {
           ui.pendingCp = { index: j, cp: cps[j] };
-          setTimeout(function () { renderCheckpointCard(); }, 1100);
+          setTimeout(function () { if (S.ui === ui) renderCheckpointCard(); }, 1100);
           return;
         }
       }
@@ -2876,6 +2938,7 @@ var CppLab = (typeof window !== 'undefined')
       // 若已走到末尾且全部检查点回答完，收尾
       if (ui.runFinished) maybeFinishTrace();
       setTimeout(function () {
+        if (S.ui !== ui) return;   // 已换活动：不动新活动的检查点区
         var h = document.getElementById('cp-host');
         if (h && !ui.pendingCp) clearNode(h);
       }, 2600);
@@ -3268,6 +3331,9 @@ var CppLab = (typeof window !== 'undefined')
 
     CppLab.Compiler.compile(req).then(function (res) {
       ui.verifyBusy = false;
+      // 自由导航可能已换活动：旧验证请求的落地绝不写进新活动
+      // （renderCompileResult 读的是当下 S.ui，含 freeEdit 自动完成判定）
+      if (S.ui !== ui) return;
       if (S.dom.bVerify) S.dom.bVerify.textContent = '🧪 真实C++验证';
       // 教师端可观测性：最近一次真实验证的状态与降级原因写入 session（教师端展示）
       try {
@@ -3287,6 +3353,7 @@ var CppLab = (typeof window !== 'undefined')
     }, function () {
       // 契约上 compile 永远 resolve；这里只是最后一道保险
       ui.verifyBusy = false;
+      if (S.ui !== ui) return;   // 跳转后旧请求不落地（同上）
       if (S.dom.bVerify) S.dom.bVerify.textContent = '🧪 真实C++验证';
       renderCompileResult({ status: 'offline', real: false }, isFree);
       refreshButtons();
@@ -3623,7 +3690,8 @@ var CppLab = (typeof window !== 'undefined')
 
     function finish() {
       ui.followUpDone = true;
-      setTimeout(onDone, 900);
+      // 换活动后不再补弹本活动的完成反馈（完成本身已在 completeCurrent 落库）
+      setTimeout(function () { if (S.ui === ui) onDone(); }, 900);
     }
 
     var card = el('div', 'feedback-card fb-ok');
@@ -3742,16 +3810,17 @@ var CppLab = (typeof window !== 'undefined')
    * 幕布只换台不传信息：先渲染好下一个活动，再在其上盖 700ms 主题化幕布
    * （图标/过渡词走 theme.js 词典），到点移除。用 setTimeout 而不是
    * animationend——动画被任何方式禁用时幕布也必须离场。
+   * word/icon 可省略（默认「起飞去下一个」）；后退/跳点传入各自的过渡词。
    */
-  function playRitual() {
+  function playRitual(word, icon) {
     if (ritualSkipped()) return;
     var old = document.querySelector('.ritual-veil');
     if (old && old.parentNode) old.parentNode.removeChild(old);
     if (ritualTimer) { clearTimeout(ritualTimer); ritualTimer = null; }
     var veil = el('div', 'ritual-veil');
     veil.setAttribute('aria-hidden', 'true');
-    veil.appendChild(el('div', 'ritual-icon', TIcon('🚀')));
-    veil.appendChild(el('div', 'ritual-word', T('起飞！去下一个任务～')));
+    veil.appendChild(el('div', 'ritual-icon', TIcon(icon || '🚀')));
+    veil.appendChild(el('div', 'ritual-word', T(word || '起飞！去下一个任务～')));
     document.body.appendChild(veil);
     ritualTimer = setTimeout(function () {
       if (veil.parentNode) veil.parentNode.removeChild(veil);
@@ -3764,6 +3833,27 @@ var CppLab = (typeof window !== 'undefined')
     if (r && r.lessonDone) { renderLessonEnd(); playRitual(); return; }
     renderActivity();
     playRitual();
+  }
+
+  /**
+   * 自由导航（剧场模式）：跳到第 idx 个活动（← / → / 进度点直达共用）。
+   * 纯浏览动作：绝不调用 completeActivity——doneIds/进度/证据只由真实完成
+   * 产生；已完成的活动按现有逻辑重进（completed:true 可重玩、不再计证据），
+   * 未完成的从头进。engine.reset() 只清运行态不清课程进度（引擎契约），
+   * 全程不写任何存储。原地不动（idx===currentIndex 或越界）则什么都不做。
+   */
+  function gotoActivity(idx, veilSpec) {
+    var engine = S.engine;
+    if (!engine || S.view !== 'lesson') return;
+    var acts = engine.getActivities();
+    if (typeof idx !== 'number' || isNaN(idx) || idx < 0 || idx >= acts.length) return;
+    if (idx === engine.currentIndex) return;
+    stopRunTimer();
+    toggleTools(false);          // 换台收工具抽屉（与换视图清零同一原则）
+    engine.currentIndex = idx;
+    engine.reset();
+    renderActivity();            // S.ui 全量重建：CTA/工具抽屉/右栏刷到目标活动
+    playRitual(veilSpec && veilSpec.word, veilSpec && veilSpec.icon);
   }
 
   /* ======================================================================
