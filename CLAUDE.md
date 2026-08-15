@@ -12,8 +12,8 @@ Dean 本人给 9 岁孩子面授的 C++ 编程课课件仓库（试听课 + 第 
 ## 当前状态与待办（2026-08-15 首课后更新）
 - [x] **首课（第 1 课）2026-08-15 用剧场版实战完成**，Dean 评价好；剧场版已**转正合并进 main**（`0751dfb`，合并后 7 测试 2033 断言全绿），theater-mode 分支已删（远端留档）。旧版 main 已按 Dean 要求**雪藏**：`.old/旧版main-剧场合并前-79ef79a-20260815.tar.gz`（`.old/` gitignored，新 session 勿读勿解压）。
 - [x] **常驻种子已就位**：`server/seed.json`（学生真名昵称，gitignored 不入库；单学生、不做账户系统——Dean 定案）。已标 trial+lesson1 completed。起服：`node server/server.js --port 8099 --seed server/seed.json`（续档时**不要**带 `--fresh`，`--fresh` 会重置回种子态）。
-- [x] **第 2 课 Mac 侧线升级完成**（`984e1af`，2026-08-15 晚）：开场「工作台仪式」+ 文件与工坊 A 档「亲手改一字再编译」；7 测试 2062 断言全绿。注：glm 通道（ccglm/z.ai）当晚从本网络不可达，本单经 Dean 拍板破例由 Claude 子代理完成；glm 恢复后回归「编码活派 glm」规矩（派前先探活 api.z.ai）。**难度阶梯目标：两三节课后孩子自己输入代码编程**。
-- [x] **同步链路已查并加固**（2026-08-16，glm 实现 `d71f2d9`）：新增 `Sync.poke()` 事件级直推（完成/证据/主题切换落库即 PUT），test-sync 20→30 断言，真实链路实测 version 0→13。**但根因未定案**：修复前代码在实验室同链路 version 也正常涨（0→12），课堂停 0 复现不了，疑环境成因（iPad Safari 挂起/课前重启时序/Wi-Fi）。→ **下次课观察项：课中老师 Mac 上 `curl localhost:8099/api/state` 抽查 version 是否递增**。
+- [x] **第 2 课 Mac 侧线升级完成**（`984e1af`，2026-08-15 晚）：开场「工作台仪式」+ 文件与工坊 A 档「亲手改一字再编译」；7 测试 2081 断言全绿（此前曾误记 2062，2026-08-16 复算勘误）。注：glm 通道（ccglm/z.ai）当晚从本网络不可达，本单经 Dean 拍板破例由 Claude 子代理完成；glm 恢复后回归「编码活派 glm」规矩（派前先探活 api.z.ai）。**难度阶梯目标：两三节课后孩子自己输入代码编程**。
+- [x] **同步链路已查并加固**（2026-08-16，glm 实现 `d71f2d9`）：新增 `Sync.poke()` 事件级直推（完成/证据/主题切换落库即 PUT），test-sync 20→30 断言（全量现 2091），真实链路实测 version 0→13。**但根因未定案**：修复前代码在实验室同链路 version 也正常涨（0→12），课堂停 0 复现不了，疑环境成因（iPad Safari 挂起/课前重启时序/Wi-Fi）。→ **下次课观察项：课中老师 Mac 上 `curl localhost:8099/api/state` 抽查 version 是否递增**。
 - [x] **旧仓库归档+冗余清理完成**（2026-08-16，Dean 指示）：`.old/` 雪藏区现存 4 个 tar.gz（B 版含 git 完整备份 / legacy 三代 main+g2+g3 / 8-11 快照 / 剧场合并前 main）+ 桌面手册副本 + 旧 CDP-lesson2 稿；`~/cpp-course-backups/` 与桌面副本已并入并删除原位；远端 theater-mode 分支已删；旧 `qa/cdp-lesson1.mjs`（剧场 UI 下必挂）已 git rm（git 史可寻回）。msi 服务器 legacy 三代旧镜像已由 Dean 亲手 sudo 删除（2026-08-16 终验：documents-courses 槽内无任何 cpp-age9-course* 条目，兄弟槽位无损）。
 - [ ] 第 3 课（string/cin，引擎有缺口挡 S/A 路径）——孩子「自己敲码」阶梯的下一步，需先补引擎。
 - 派工规矩：编码实现活派 **glm 通道**（`ccglm`），网络探针派 **agy**；主 session 负责规格、验收、commit。
