@@ -103,6 +103,33 @@ var CppLab = (typeof window !== 'undefined')
   // pick 只用于表扬/鼓励语模板：随机取一条后按当前主题替换角色词
   function pick(arr) { return T(arr[Math.floor(Math.random() * arr.length)]); }
 
+  /**
+   * 双语术语 chip（设计 tokens §6）：内容文案里的 [[中文|english]] 标记
+   * 渲染成 .cpp-term-chip（中文为主 + 等宽英文）。先过主题词典 T() 再解析
+   * 标记（词典只含中文故事词，不会碰到标记本身）。只有编程术语上 chip；
+   * 已接入的字段：activity.childPrompt（场景目标）、variant.intro、
+   * prediction.question、interaction.question（choice）。其余字段仍按纯文本
+   * 渲染（标记会原样显示，内容作者别在未接入字段里用）。
+   * 纯 createElement/textContent 构建，不引入 innerHTML。
+   */
+  var TERM_RE = /\[\[([^\[\]|]+)\|([^\[\]|]+)\]\]/g;
+  function richText(text, themeId) {
+    var frag = document.createDocumentFragment();
+    var str = T(text === null || text === undefined ? '' : String(text), themeId);
+    TERM_RE.lastIndex = 0;
+    var last = 0;
+    var m;
+    while ((m = TERM_RE.exec(str))) {
+      if (m.index > last) frag.appendChild(document.createTextNode(str.slice(last, m.index)));
+      var chip = el('span', 'cpp-term-chip', m[1].trim());
+      chip.appendChild(el('code', null, m[2].trim()));
+      frag.appendChild(chip);
+      last = m.index + m[0].length;
+    }
+    if (last < str.length) frag.appendChild(document.createTextNode(str.slice(last)));
+    return frag;
+  }
+
   function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
 
   function valEq(a, b) {
@@ -305,8 +332,60 @@ var CppLab = (typeof window !== 'undefined')
    * 顶栏
    * ==================================================================== */
 
+  /* ---------------- 主题切换器（红线：三主题切换器必须保留） ---------------- */
+
+  function buildThemeSwitch() {
+    var wrap = el('div', 'theme-switch');
+    wrap.setAttribute('role', 'group');
+    wrap.setAttribute('aria-label', '切换主题');
+    THEMES.forEach(function (t) {
+      var b = el('button', 'ts-btn', t.icon);
+      b.type = 'button';
+      b.title = t.name;
+      b.setAttribute('aria-label', t.name);
+      b.setAttribute('data-set-theme', t.id);
+      b.addEventListener('click', function () { switchTheme(t.id); });
+      wrap.appendChild(b);
+    });
+    return wrap;
+  }
+
+  function refreshThemeSwitch() {
+    var cur = session().theme || 'robot';
+    var btns = document.querySelectorAll('.ts-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('on', btns[i].getAttribute('data-set-theme') === cur);
+    }
+  }
+
+  /**
+   * 中途切主题：色板即时生效（CSS token 随 body[data-theme] 走）；
+   * 故事词只在「不打断孩子」时立即重渲染——已开工的活动不重置
+   * （沿用 syncScaffoldFromTeacher 的 untouched 判定），词汇从下一个活动跟上。
+   */
+  function switchTheme(id) {
+    var s = session();
+    if ((s.theme || null) === id) return;
+    Sto().update(function (ss) { ss.theme = id; });
+    applyTheme(id);
+    refreshThemeSwitch();
+    if (S.view === 'home') { renderHome(); return; }
+    if (S.view === 'end') { renderLessonEnd(); return; }
+    if (S.view === 'intro') { renderLessonIntro(S.introText || ''); return; }
+    if (S.view === 'lesson' && S.engine && S.ui) {
+      var ui = S.ui;
+      var untouched = !ui.completed && !ui.predicted && ui.emitted === 0 &&
+        ui.localCursor === 0 && ui.interactionAttempts === 0 &&
+        !ui.runFinished && !ui.pendingCp && !ui.bugFoundLine &&
+        S.engine.getActivityState().status === 'idle';
+      if (untouched) renderLesson();
+    }
+  }
+
   function buildTopbar(opts) {
     opts = opts || {};
+    // 换视图 = 抽屉/幕布状态清零（工具抽屉只属于课程运行页）
+    document.body.classList.remove('tools-open');
     var bar = el('div', 'topbar');
 
     var brand = el('button', 'brand');
@@ -328,6 +407,19 @@ var CppLab = (typeof window !== 'undefined')
     if (opts.dots) bar.appendChild(opts.dots);
 
     var actions = el('div', 'top-actions');
+    // 主题切换器常驻顶栏（onboarding 还没选主题，不显示）
+    if (!opts.noThemeSwitch) actions.appendChild(buildThemeSwitch());
+    // 剧场模式（课程运行页）：顶栏退化为舞台眉，开关类按钮收进工具抽屉（原则②）
+    if (!opts.compact) {
+      buildSettingButtons().forEach(function (b) { actions.appendChild(b); });
+    }
+    bar.appendChild(actions);
+    setTimeout(refreshThemeSwitch, 0);
+    return bar;
+  }
+
+  /** 全屏/动画/声音三个开关按钮：非课程页放顶栏，课程页放工具抽屉。 */
+  function buildSettingButtons() {
     var s = session();
     var animOn = !(s.settings && s.settings.anim === false);
     var soundOn = !!(s.settings && s.settings.sound);
@@ -369,7 +461,6 @@ var CppLab = (typeof window !== 'undefined')
     });
     document.addEventListener('fullscreenchange', fsUpdate);
     document.addEventListener('webkitfullscreenchange', fsUpdate);
-    actions.appendChild(fsBtn);
 
     var animBtn = el('button', 'toggle-btn' + (animOn ? ' on' : ''), '✨ 动画：' + (animOn ? '开' : '关'));
     animBtn.type = 'button';
@@ -380,7 +471,6 @@ var CppLab = (typeof window !== 'undefined')
       animBtn.classList.toggle('on', now);
       animBtn.textContent = '✨ 动画：' + (now ? '开' : '关');
     });
-    actions.appendChild(animBtn);
 
     var soundBtn = el('button', 'toggle-btn' + (soundOn ? ' on' : ''), '🔔 声音：' + (soundOn ? '开' : '关'));
     soundBtn.type = 'button';
@@ -391,10 +481,8 @@ var CppLab = (typeof window !== 'undefined')
       soundBtn.classList.toggle('on', now);
       soundBtn.textContent = '🔔 声音：' + (now ? '开' : '关');
     });
-    actions.appendChild(soundBtn);
 
-    bar.appendChild(actions);
-    return bar;
+    return [fsBtn, animBtn, soundBtn];
   }
 
   /* ======================================================================
@@ -404,7 +492,8 @@ var CppLab = (typeof window !== 'undefined')
   function renderOnboarding() {
     S.view = 'onboard';
     clearNode(S.root);
-    S.root.appendChild(buildTopbar({ title: 'C++ 小探险' }));
+    // 主题还没选：顶栏不放主题切换器（选择就在下面的主题卡里）
+    S.root.appendChild(buildTopbar({ title: 'C++ 小探险', noThemeSwitch: true }));
 
     var view = el('div', 'view view-narrow');
     var card = el('div', 'card onboard-card');
@@ -684,6 +773,7 @@ var CppLab = (typeof window !== 'undefined')
 
   function renderLessonIntro(introText) {
     S.view = 'intro';
+    S.introText = introText; // 中途切主题时用同一段正本重渲染
     clearNode(S.root);
     S.root.appendChild(buildTopbar({ title: T(packTitle(S.lessonId)) }));
     var view = el('div', 'view view-narrow');
@@ -702,27 +792,75 @@ var CppLab = (typeof window !== 'undefined')
    * 课程运行页（三栏）
    * ==================================================================== */
 
+  /**
+   * 进度点（剧场模式导航）：点圆点直接跳到任意活动——纯浏览动作，
+   * 不看完成状态（从卡住的活动逃生正是它的用途）。当前点禁用（跳回原地无意义）。
+   */
   function buildProgressDots() {
     var engine = S.engine;
     var dots = el('div', 'progress-dots');
+    dots.setAttribute('role', 'group');
+    dots.setAttribute('aria-label', '任务进度，点圆点直接过去');
     var states = ((session().lessons || {})[S.lessonId] || {}).activityStates || {};
     engine.getActivities().forEach(function (a, i) {
-      var d = el('span', 'dot');
-      if (states[a.id] && states[a.id].status === 'done') d.classList.add('done');
-      if (i === engine.currentIndex) d.classList.add('current');
-      d.title = '任务 ' + (i + 1);
+      var done = !!(states[a.id] && states[a.id].status === 'done');
+      var cur = i === engine.currentIndex;
+      var d = el('button', 'dot');
+      d.type = 'button';
+      if (done) d.classList.add('done');
+      if (cur) d.classList.add('current');
+      d.title = '任务 ' + (i + 1) + (cur ? '（在这里）' : (done ? '（已完成）' : ''));
+      d.setAttribute('aria-label', '去任务 ' + (i + 1) + (cur ? '，现在在这里' : ''));
+      if (cur) d.setAttribute('aria-current', 'true');
+      d.disabled = cur;
+      d.addEventListener('click', function () {
+        gotoActivity(i, { icon: '🚀', word: '去第 ' + (i + 1) + ' 个任务～' });
+      });
       dots.appendChild(d);
     });
     return dots;
+  }
+
+  /**
+   * 舞台眉导航（剧场模式）：← 进度点 →。前进/后退不受当前活动完成状态限制
+   * （目的正是从卡住的活动逃生）；到边界对应按钮禁用。跳转逻辑见 gotoActivity。
+   */
+  function buildStageNav() {
+    var engine = S.engine;
+    var wrap = el('div', 'stage-nav');
+    wrap.setAttribute('role', 'group');
+    wrap.setAttribute('aria-label', '任务导航');
+    var prev = el('button', 'stage-nav-btn stage-nav-prev', '←');
+    prev.type = 'button';
+    prev.title = '上一个任务';
+    prev.setAttribute('aria-label', '上一个任务');
+    prev.addEventListener('click', function () {
+      gotoActivity(engine.currentIndex - 1, { icon: '🧭', word: '回头看看上一个任务～' });
+    });
+    var next = el('button', 'stage-nav-btn stage-nav-next', '→');
+    next.type = 'button';
+    next.title = '下一个任务';
+    next.setAttribute('aria-label', '下一个任务');
+    next.addEventListener('click', function () {
+      gotoActivity(engine.currentIndex + 1, { icon: '🚀', word: '起飞！去下一个任务～' });
+    });
+    var acts = engine.getActivities();
+    prev.disabled = engine.currentIndex <= 0;
+    next.disabled = engine.currentIndex + 1 >= acts.length;
+    wrap.appendChild(prev);
+    wrap.appendChild(buildProgressDots());
+    wrap.appendChild(next);
+    return wrap;
   }
 
   function renderLesson() {
     S.view = 'lesson';
     stopRunTimer();
     clearNode(S.root);
-    S.root.appendChild(buildTopbar({ title: T(packTitle(S.lessonId)), dots: buildProgressDots() }));
+    // 剧场模式：顶栏退化为舞台眉（← 进度点 → + 主题切换），开关收进工具抽屉
+    S.root.appendChild(buildTopbar({ title: T(packTitle(S.lessonId)), dots: buildStageNav(), compact: true }));
 
-    var view = el('div', 'view');
+    var view = el('div', 'view stage-view');
     var grid = el('div', 'lesson-grid');
 
     // ---- 左栏：任务场景 ----
@@ -799,12 +937,44 @@ var CppLab = (typeof window !== 'undefined')
     });
     view.appendChild(lensFab);
 
-    // ---- 底部按钮条（按活动动态渲染，见 renderButtonBar） ----
+    // ---- 底部：唯一主按钮（剧场原则③，动作由 updateStageCta 按状态切换） ----
     var barWrap = el('div', 'btnbar-wrap');
     var bar = el('div', 'btnbar');
     bar.id = 'btnbar';
+    var cta = el('button', 'cta-main');
+    cta.type = 'button';
+    cta.addEventListener('click', function () {
+      if (S.dom && typeof S.dom.ctaAction === 'function') S.dom.ctaAction();
+    });
+    bar.appendChild(cta);
     barWrap.appendChild(bar);
     view.appendChild(barWrap);
+
+    // ---- 右缘「🧰 工具」抽屉（剧场原则②：非当前操作全部收起） ----
+    var toolHandle = el('button', 'tool-handle', '🧰 工具');
+    toolHandle.type = 'button';
+    toolHandle.setAttribute('aria-expanded', 'false');
+    toolHandle.setAttribute('aria-controls', 'tool-drawer');
+    toolHandle.addEventListener('click', function () { toggleTools(true); });
+    view.appendChild(toolHandle);
+    var toolMask = el('div', 'tool-mask');
+    toolMask.addEventListener('click', function () { toggleTools(false); });
+    view.appendChild(toolMask);
+    var toolDrawer = el('aside', 'tool-drawer');
+    toolDrawer.id = 'tool-drawer';
+    toolDrawer.setAttribute('aria-label', '工具抽屉');
+    var toolClose = el('button', 'tool-btn tool-close', '✕ 收起');
+    toolClose.type = 'button';
+    toolClose.addEventListener('click', function () { toggleTools(false); });
+    toolDrawer.appendChild(toolClose);
+    toolDrawer.appendChild(el('h3', null, '慢慢来'));
+    var toolHost = el('div', 'tool-host');   // 按活动动态渲染（renderButtonBar）
+    toolDrawer.appendChild(toolHost);
+    toolDrawer.appendChild(el('h3', null, '设置'));
+    var toolSettings = el('div', 'tool-settings');
+    buildSettingButtons().forEach(function (b) { toolSettings.appendChild(b); });
+    toolDrawer.appendChild(toolSettings);
+    view.appendChild(toolDrawer);
 
     S.root.appendChild(view);
 
@@ -820,11 +990,19 @@ var CppLab = (typeof window !== 'undefined')
       varsGrid: varsGrid, timeline: tl, tlEmpty: tlEmpty, outBox: outBox,
       hintList: hintList,
       btnbar: bar,
+      cta: cta, ctaWrap: barWrap, ctaAction: null,
+      toolHost: toolHost, toolHandle: toolHandle,
       bPredict: null, bStep: null, bRun: null,
       bReset: null, bVerify: null, bHint: null
     };
 
     renderActivity();
+  }
+
+  /** 工具抽屉开合（剧场原则②）。 */
+  function toggleTools(open) {
+    document.body.classList.toggle('tools-open', !!open);
+    if (S.dom && S.dom.toolHandle) S.dom.toolHandle.setAttribute('aria-expanded', String(!!open));
   }
 
   function closeLens() {
@@ -917,8 +1095,9 @@ var CppLab = (typeof window !== 'undefined')
     S.ui.codeMode = (modes.indexOf('focus') >= 0 && S.engine.scaffold !== 'E') ? 'focus' : modes[0];
     if (S.ui.type === 'freeEdit') S.ui.codeMode = 'free';
 
-    // 左栏：目标 + Visualizer（儿童可见任务文案过主题词典）
-    S.dom.goal.textContent = T(activity.childPrompt || activity.title || '');
+    // 左栏：目标 + Visualizer（儿童可见任务文案过主题词典 + 术语 chip）
+    clearNode(S.dom.goal);
+    S.dom.goal.appendChild(richText(activity.childPrompt || activity.title || ''));
     mountViz(activity, variant);
 
     // 中栏
@@ -973,38 +1152,47 @@ var CppLab = (typeof window !== 'undefined')
     return true;
   }
 
+  /** 工具抽屉按钮工厂（不走 btn()，避免被自动补 .btn 类）。 */
+  function toolBtn(label, onClick) {
+    var b = el('button', 'tool-btn', label);
+    b.type = 'button';
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
   /**
-   * 底部按钮条动态渲染（§13-2）：
+   * 剧场原则②/③：舞台上只留一个大主按钮（updateStageCta 决定它此刻是什么），
+   * 次要动作全部收进右缘「🧰 工具」抽屉，按活动能力动态渲染（§13-2）：
    * - 无 prediction → 不渲染「先预测」；无 program → 不渲染「单步/运行」；
    * - 不可验证 → 不渲染「真实C++验证」；无提示入口 → 不渲染「求提示」；
-   * - 「重置」始终保留。
+   * - 「重新再来」始终保留。
    */
   function renderButtonBar() {
     var d = S.dom;
     var ui = S.ui;
-    if (!d.btnbar || !ui) return;
-    clearNode(d.btnbar);
+    if (!d.toolHost || !ui) return;
+    clearNode(d.toolHost);
     d.bPredict = d.bStep = d.bRun = d.bReset = d.bVerify = d.bHint = null;
 
     if (effPrediction()) {
-      d.bPredict = btn('🤔 先预测', 'btn', function () { focusPredict(); });
-      d.btnbar.appendChild(d.bPredict);
+      d.bPredict = toolBtn('🤔 先预测', function () { toggleTools(false); focusPredict(); });
+      d.toolHost.appendChild(d.bPredict);
     }
     if (activityHasProgram()) {
-      d.bStep = btn('👣 单步', 'btn', function () { doStep(); });
-      d.bRun = btn('▶ 运行', 'btn', function () { doRun(); });
-      d.btnbar.appendChild(d.bStep);
-      d.btnbar.appendChild(d.bRun);
+      d.bStep = toolBtn('👣 单步执行', function () { doStep(); }); // 不关抽屉：可以连续点
+      d.bRun = toolBtn('▶ 一口气运行', function () { toggleTools(false); doRun(); });
+      d.toolHost.appendChild(d.bStep);
+      d.toolHost.appendChild(d.bRun);
     }
-    d.bReset = btn('🔄 重置', 'btn', function () { doReset(); });
-    d.btnbar.appendChild(d.bReset);
+    d.bReset = toolBtn('🔄 重新再来', function () { toggleTools(false); doReset(); });
+    d.toolHost.appendChild(d.bReset);
     if (activityCanVerify()) {
-      d.bVerify = btn(ui.verifyBusy ? '⏳ 验证中…' : '🧪 真实C++验证', 'btn', function () { doVerify(); });
-      d.btnbar.appendChild(d.bVerify);
+      d.bVerify = toolBtn(ui.verifyBusy ? '⏳ 验证中…' : '🧪 真实C++验证', function () { toggleTools(false); doVerify(); });
+      d.toolHost.appendChild(d.bVerify);
     }
     if (hintEntryAvailable()) {
-      d.bHint = btn('💡 求提示', 'btn', function () { doHint(); });
-      d.btnbar.appendChild(d.bHint);
+      d.bHint = toolBtn('💡 求提示', function () { toggleTools(false); doHint(); });
+      d.toolHost.appendChild(d.bHint);
     }
   }
 
@@ -1038,7 +1226,21 @@ var CppLab = (typeof window !== 'undefined')
     var top = document.querySelector('.topbar');
     if (!top) return;
     var old = top.querySelector('.progress-dots');
-    if (old) top.replaceChild(buildProgressDots(), old);
+    // .progress-dots 在 .stage-nav 里（孙节点）：必须在它真父节点上替换，
+    // 用 top.replaceChild 会抛 NotFoundError（P0，审查 A1）
+    if (old && old.parentNode) old.parentNode.replaceChild(buildProgressDots(), old);
+    refreshStageNav();
+  }
+
+  /** 舞台眉 ← → 的边界禁用态：跟随 currentIndex（进度点重画后同一时机刷新）。 */
+  function refreshStageNav() {
+    var top = document.querySelector('.topbar');
+    if (!top || !S.engine || S.view !== 'lesson') return;
+    var prev = top.querySelector('.stage-nav-prev');
+    var next = top.querySelector('.stage-nav-next');
+    var n = S.engine.getActivities().length;
+    if (prev) prev.disabled = S.engine.currentIndex <= 0;
+    if (next) next.disabled = S.engine.currentIndex + 1 >= n;
   }
 
   function allowedCodeModes() {
@@ -1449,7 +1651,9 @@ var CppLab = (typeof window !== 'undefined')
       return panel;
     }
 
-    panel.appendChild(el('div', 'pp-q', '🤔 先想一想：' + T(pred.question || '结果会是什么？')));
+    var ppq = el('div', 'pp-q', '🤔 先想一想：');
+    ppq.appendChild(richText(pred.question || '结果会是什么？'));
+    panel.appendChild(ppq);
     var row = el('div', 'predict-row');
 
     if (pred.inputType === 'choice' && Array.isArray(pred.options)) {
@@ -1621,7 +1825,9 @@ var CppLab = (typeof window !== 'undefined')
     head.appendChild(el('div', 'ah-kicker', '任务 ' + (S.engine.currentIndex + 1) + ' / ' + S.engine.getActivities().length));
     head.appendChild(el('h2', null, T(activity.title || '新任务')));
     if (ui.variant && ui.variant.intro) {
-      head.appendChild(el('p', 'activity-prompt', T(ui.variant.intro)));
+      var introP = el('p', 'activity-prompt');
+      introP.appendChild(richText(ui.variant.intro));
+      head.appendChild(introP);
     }
     d.center.appendChild(head);
 
@@ -1710,7 +1916,9 @@ var CppLab = (typeof window !== 'undefined')
     var ui = S.ui;
     var card = el('div', 'panel');
     card.appendChild(el('div', 'panel-title', '❓ 选一选'));
-    card.appendChild(el('p', 'activity-prompt', T(inter.question || '')));
+    var qp = el('p', 'activity-prompt');
+    qp.appendChild(richText(inter.question || ''));
+    card.appendChild(qp);
     var row = el('div', 'chip-row');
     var multi = !!inter.multi;
     var chosen = {};
@@ -1834,13 +2042,14 @@ var CppLab = (typeof window !== 'undefined')
     (inter.items || []).forEach(function (it) { if (it) byId[it.id] = it; });
     var ids = (inter.correctOrder || []).slice();
     var gap = animDelay();
+    var viz = S.viz;   // 演出只属于发起它的活动；换台后（S.viz 已换）不再上演
     ids.forEach(function (id, i) {
       var it = byId[id] || { label: String(id) };
       var text = '第 ' + (i + 1) + ' 步：' + (it.icon ? TIcon(it.icon) + ' ' : '') + T(it.label) + '！' +
         (i === ids.length - 1 ? ' 任务完成！' : '');
       var show = function () {
-        if (!S.viz) return;
-        try { S.viz.applyTraceEntry({ kind: 'seq-demo', index: i, description: text }); } catch (e) { /* 忽略 */ }
+        if (S.viz !== viz) return;
+        try { viz.applyTraceEntry({ kind: 'seq-demo', index: i, description: text }); } catch (e) { /* 忽略 */ }
       };
       if (gap === 0) {
         if (i === ids.length - 1) show(); // 动画关闭：只展示完成旁白
@@ -2721,7 +2930,7 @@ var CppLab = (typeof window !== 'undefined')
       for (var j = 0; j < cps.length; j++) {
         if (cps[j].afterStep === cp.afterStep && !ui.cpResults[j]) {
           ui.pendingCp = { index: j, cp: cps[j] };
-          setTimeout(function () { renderCheckpointCard(); }, 1100);
+          setTimeout(function () { if (S.ui === ui) renderCheckpointCard(); }, 1100);
           return;
         }
       }
@@ -2729,6 +2938,7 @@ var CppLab = (typeof window !== 'undefined')
       // 若已走到末尾且全部检查点回答完，收尾
       if (ui.runFinished) maybeFinishTrace();
       setTimeout(function () {
+        if (S.ui !== ui) return;   // 已换活动：不动新活动的检查点区
         var h = document.getElementById('cp-host');
         if (h && !ui.pendingCp) clearNode(h);
       }, 2600);
@@ -3121,6 +3331,9 @@ var CppLab = (typeof window !== 'undefined')
 
     CppLab.Compiler.compile(req).then(function (res) {
       ui.verifyBusy = false;
+      // 自由导航可能已换活动：旧验证请求的落地绝不写进新活动
+      // （renderCompileResult 读的是当下 S.ui，含 freeEdit 自动完成判定）
+      if (S.ui !== ui) return;
       if (S.dom.bVerify) S.dom.bVerify.textContent = '🧪 真实C++验证';
       // 教师端可观测性：最近一次真实验证的状态与降级原因写入 session（教师端展示）
       try {
@@ -3140,6 +3353,7 @@ var CppLab = (typeof window !== 'undefined')
     }, function () {
       // 契约上 compile 永远 resolve；这里只是最后一道保险
       ui.verifyBusy = false;
+      if (S.ui !== ui) return;   // 跳转后旧请求不落地（同上）
       if (S.dom.bVerify) S.dom.bVerify.textContent = '🧪 真实C++验证';
       renderCompileResult({ status: 'offline', real: false }, isFree);
       refreshButtons();
@@ -3476,7 +3690,8 @@ var CppLab = (typeof window !== 'undefined')
 
     function finish() {
       ui.followUpDone = true;
-      setTimeout(onDone, 900);
+      // 换活动后不再补弹本活动的完成反馈（完成本身已在 completeCurrent 落库）
+      setTimeout(function () { if (S.ui === ui) onDone(); }, 900);
     }
 
     var card = el('div', 'feedback-card fb-ok');
@@ -3579,10 +3794,66 @@ var CppLab = (typeof window !== 'undefined')
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
+  /* ---------------- 活动切换过渡仪式（剧场原则④，700ms） ---------------- */
+
+  /** no-anim 或系统减动效：仪式跳过，直接跳切（零信息损失）。 */
+  function ritualSkipped() {
+    if (document.body.classList.contains('no-anim')) return true;
+    try {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+    } catch (e) { /* matchMedia 不可用按有动画处理 */ }
+    return false;
+  }
+
+  var ritualTimer = null;
+  /**
+   * 幕布只换台不传信息：先渲染好下一个活动，再在其上盖 700ms 主题化幕布
+   * （图标/过渡词走 theme.js 词典），到点移除。用 setTimeout 而不是
+   * animationend——动画被任何方式禁用时幕布也必须离场。
+   * word/icon 可省略（默认「起飞去下一个」）；后退/跳点传入各自的过渡词。
+   */
+  function playRitual(word, icon) {
+    if (ritualSkipped()) return;
+    var old = document.querySelector('.ritual-veil');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    if (ritualTimer) { clearTimeout(ritualTimer); ritualTimer = null; }
+    var veil = el('div', 'ritual-veil');
+    veil.setAttribute('aria-hidden', 'true');
+    veil.appendChild(el('div', 'ritual-icon', TIcon(icon || '🚀')));
+    veil.appendChild(el('div', 'ritual-word', T(word || '起飞！去下一个任务～')));
+    document.body.appendChild(veil);
+    ritualTimer = setTimeout(function () {
+      if (veil.parentNode) veil.parentNode.removeChild(veil);
+      ritualTimer = null;
+    }, 760); // --cpp-dur-ritual(700ms) + 小缓冲
+  }
+
   function gotoNextActivity() {
     var r = S.engine.next();
-    if (r && r.lessonDone) { renderLessonEnd(); return; }
+    if (r && r.lessonDone) { renderLessonEnd(); playRitual(); return; }
     renderActivity();
+    playRitual();
+  }
+
+  /**
+   * 自由导航（剧场模式）：跳到第 idx 个活动（← / → / 进度点直达共用）。
+   * 纯浏览动作：绝不调用 completeActivity——doneIds/进度/证据只由真实完成
+   * 产生；已完成的活动按现有逻辑重进（completed:true 可重玩、不再计证据），
+   * 未完成的从头进。engine.reset() 只清运行态不清课程进度（引擎契约），
+   * 全程不写任何存储。原地不动（idx===currentIndex 或越界）则什么都不做。
+   */
+  function gotoActivity(idx, veilSpec) {
+    var engine = S.engine;
+    if (!engine || S.view !== 'lesson') return;
+    var acts = engine.getActivities();
+    if (typeof idx !== 'number' || isNaN(idx) || idx < 0 || idx >= acts.length) return;
+    if (idx === engine.currentIndex) return;
+    stopRunTimer();
+    toggleTools(false);          // 换台收工具抽屉（与换视图清零同一原则）
+    engine.currentIndex = idx;
+    engine.reset();
+    renderActivity();            // S.ui 全量重建：CTA/工具抽屉/右栏刷到目标活动
+    playRitual(veilSpec && veilSpec.word, veilSpec && veilSpec.icon);
   }
 
   /* ======================================================================
@@ -3664,7 +3935,10 @@ var CppLab = (typeof window !== 'undefined')
   }
 
   /* ======================================================================
-   * 按钮条状态机（.btn-primary 同屏 <= 2，红线 §14.5）
+   * 按钮状态机（剧场模式）：
+   * - 抽屉里的次要按钮只管可用/禁用，永远不做 .btn-primary 高亮；
+   * - 舞台 C 位只有一个大主按钮（.cta-main），由 updateStageCta 按状态换脸；
+   * - 同屏高亮 <= 2（红线 §14.5）：CTA(1) + 反馈卡主按钮(≤1)。
    * ==================================================================== */
 
   function refreshButtons() {
@@ -3674,11 +3948,10 @@ var CppLab = (typeof window !== 'undefined')
 
     var pred = effPrediction();
     var hasProgram = activityHasProgram();
-    var needPredict = !!pred && !ui.predicted;
     var paused = !!ui.pendingCp;
     var canVerify = activityCanVerify();
 
-    // 可用性（按钮条已按活动动态渲染，这里只对存在的按钮设状态）
+    // 可用性（抽屉按钮已按活动动态渲染，这里只对存在的按钮设状态）
     if (d.bPredict) d.bPredict.disabled = !pred || ui.predicted || ui.runFinished;
     if (d.bStep) {
       d.bStep.disabled = !hasProgram || paused || ui.verifyBusy || (ui.runFinished && !ui.useLocal && S.engine.getActivityState().status === 'done');
@@ -3690,30 +3963,52 @@ var CppLab = (typeof window !== 'undefined')
     if (d.bVerify) d.bVerify.disabled = !canVerify || !!ui.verifyBusy;
     if (d.bHint) d.bHint.disabled = false;
 
-    // 高亮策略：任何时刻 .btn-primary <= 2
-    [d.bPredict, d.bStep, d.bRun, d.bReset, d.bVerify, d.bHint].forEach(function (b) {
-      if (b) b.classList.remove('btn-primary');
-    });
+    updateStageCta();
+  }
 
-    var primaries = [];
-    if (needPredict) {
-      primaries = [d.bPredict];               // 未预测：只高亮「先预测」
-    } else if (hasProgram && !ui.runFinished && !paused && !(ui.type === 'bughunt' && ui.bugFixed)) {
-      primaries = [d.bStep, d.bRun];          // 待运行：单步 + 运行
-    } else if (ui.runFinished && canVerify && !ui.completed) {
-      primaries = [d.bVerify];                // 跑完待验证
-    } else if (ui.type === 'freeEdit' && canVerify && !ui.completed) {
-      primaries = [d.bVerify];
-    } else if (ui.type === 'bughunt' && ui.bugFixed && canVerify) {
-      primaries = [d.bVerify];
+  /**
+   * 舞台大主按钮（剧场原则③）：任何时刻只呈现「此刻要按的那一件事」。
+   * 优先级：已完成→下一站/领徽章 ＞ 检查点作答中→隐藏 ＞ 先预测 ＞
+   * 验证中 ＞ 运行 ＞ 真实C++验证 ＞ 无（主动作在活动卡片里时隐藏）。
+   */
+  function updateStageCta() {
+    var d = S.dom;
+    var ui = S.ui;
+    if (!d.cta || !ui || !S.engine) return;
+
+    var pred = effPrediction();
+    var hasProgram = activityHasProgram();
+    var needPredict = !!pred && !ui.predicted;
+    var paused = !!ui.pendingCp;
+    var canVerify = activityCanVerify();
+    var isLast = S.engine.currentIndex + 1 >= S.engine.getActivities().length;
+
+    var spec = null;
+    if (ui.completed) {
+      spec = isLast
+        ? { label: '🏅 去领我的徽章！', act: function () { renderLessonEnd(); } }
+        : { label: '➡ 下一个任务！', act: function () { gotoNextActivity(); } };
+    } else if (paused) {
+      spec = null;                             // 检查点提问在卡片里回答
+    } else if (needPredict) {
+      spec = { label: '🤔 先预测', act: function () { focusPredict(); } };
+    } else if (ui.verifyBusy) {
+      spec = { label: '⏳ 验证中…', act: function () {}, disabled: true };
+    } else if (hasProgram && !ui.runFinished && !(ui.type === 'bughunt' && ui.bugFixed)) {
+      spec = { label: '▶ 运行', act: function () { doRun(); } };
+    } else if (canVerify && (ui.runFinished || ui.type === 'freeEdit' || ui.codeMode === 'free' || (ui.type === 'bughunt' && ui.bugFixed))) {
+      spec = { label: '🧪 真实C++验证', act: function () { doVerify(); } };
     }
-    primaries = primaries.filter(function (b) { return !!b; });
-    // 反馈卡里的主按钮也算同屏高亮：反馈区有主按钮时最多再留 1 个
-    var fbPrimary = document.querySelector('#feedback-area .btn-primary');
-    var budget = fbPrimary ? 1 : 2;
-    primaries.slice(0, budget).forEach(function (b) {
-      if (!b.disabled) b.classList.add('btn-primary');
-    });
+
+    if (!spec) {
+      d.ctaWrap.style.display = 'none';        // 主动作在活动卡片里（选一选/排一排…）
+      d.ctaAction = null;
+      return;
+    }
+    d.ctaWrap.style.display = '';
+    d.cta.textContent = spec.label;
+    d.cta.disabled = !!spec.disabled;
+    d.ctaAction = spec.act;
   }
 
   /* ======================================================================
