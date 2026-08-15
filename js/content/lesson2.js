@@ -141,6 +141,123 @@ var CppLab = (typeof window !== 'undefined')
     activities: [
 
       /* =====================================================================
+       * 活动 0 · 开场 0–3 分钟 · 工作台仪式（ordering）——Mac 基础操作侧线第 2 关
+       * 依 Dean 首课后的定案：第 1 课登机仪式只覆盖「网络+浏览器」，第 2 课在
+       * Mac 系统环境下拓展、向正式编程环境逐步推进——目标是两三节课后孩子能
+       * 自己输入代码。本活动：访达新建「我的代码」文件夹 → 认识键盘上的
+       * Cmd/空格/Shift 与切英文输入法 → 文本编辑(TextEdit)用英文敲一行字。
+       * 规格仿 lesson1-00-boarding-ritual：order 0 排最前、minutes [0,3]。
+       * minutes 与活动 1（能量回忆 [0,7]）角标重叠——照本课 6.5 活动
+       * （file-workshop）的先例处理：时间弹性共享，节奏由教师现场把控。
+       * 各变体 program 为 null、不参与编译校验；动手部分全部在真机
+       * （访达/键盘/文本编辑）完成。这里建的「我的代码」文件夹，本课后面的
+       * 「代码的家」活动（lesson2-09）会再次用到——届时不必重建，找到即可。
+       * =================================================================== */
+      {
+        id: 'lesson2-00-workbench-ritual',
+        lessonId: 'lesson2',
+        order: 0,
+        minutes: [0, 3],
+        title: '工作台仪式',
+        concept: '程序员的工作台：文件夹是代码的家，键盘和英文输入法是写代码的工具。',
+        learningObjective: '能在访达里亲手新建「我的代码」文件夹，认识键盘上的 Cmd/空格/Shift，切换成英文输入法并在文本编辑里用英文敲出一行字（对应 D12 电脑操作熟练度；Mac 基础操作侧线第 2 关）。',
+        childPrompt: '上次你连上了老师的服务器，这次要搭起自己的工作台！机器人拍拍桌子：「真正的程序员动手前，先备好三样——给代码安家的[[文件夹|folder]]、听你指挥的[[键盘|keyboard]]、还有写代码专用的英文输入法。照卡片把仪式做一遍！」',
+        dimensions: ['D12', 'D2'],
+        activityType: 'ordering',
+        visualModel: 'scene',
+        variants: {
+          E: {
+            intro: '机器人说：「今天的仪式只有三步，一步一步来，我在旁边看着你。做完这三步，你的工作台就搭好啦！」',
+            program: null,
+            interaction: {
+              items: [
+                { id: 'open-finder', label: '点 Dock 里的笑脸打开访达，在桌面新建一个文件夹，取名「我的代码」', icon: '📁' },
+                { id: 'meet-keys', label: '在键盘上找到三个新朋友：Cmd ⌘、空格（最长那条）、Shift ⇧，再把输入法切换成英文', icon: '⌨️' },
+                { id: 'type-hello', label: '打开文本编辑（TextEdit），用英文敲出 hello', icon: '📝' }
+              ],
+              correctOrder: ['open-finder', 'meet-keys', 'type-hello']
+            },
+            prediction: null,
+            successCriteria: '排出正确顺序，并在真机上完成一遍：新建出「我的代码」文件夹、指认三个键、在文本编辑里敲出 hello（操作可由老师念口令、孩子动手）。'
+          },
+          S: {
+            intro: '机器人递来一张「工作台检查单」：「这次是完整版仪式——四步一步都不能乱！排好之后在真机上做一遍，每做一步就指给我看：这是哪张卡？」',
+            program: null,
+            interaction: {
+              items: [
+                { id: 'open-finder', label: '打开访达（Dock 里的笑脸），新建文件夹取名「我的代码」——这是代码的家', icon: '📁' },
+                { id: 'meet-keys', label: '低头认键盘：找到 Cmd ⌘、最长的空格条、上箭头 Shift ⇧', icon: '⌨️' },
+                { id: 'switch-en', label: '把输入法切换成英文——看屏幕右上角的输入法标志变成英文（ABC）', icon: '🔤' },
+                { id: 'type-hello', label: '打开文本编辑，新建文档，用英文敲出 hello，检查每个字母都是英文', icon: '📝' }
+              ],
+              correctOrder: ['open-finder', 'meet-keys', 'switch-en', 'type-hello']
+            },
+            prediction: null,
+            successCriteria: '独立排出四步并在真机完成；能指出右上角的输入法标志现在是中文还是英文，并说出 Shift 是用来打大写字母的。'
+          },
+          A: {
+            intro: '机器人神秘地说：「高级仪式一共五步，全部自己来，一步都不用老师帮。最后还要回答我的工作台之问——全对了才算出师！」',
+            program: null,
+            interaction: {
+              items: [
+                { id: 'open-finder', label: '打开访达（Dock 里的笑脸），新建文件夹取名「我的代码」——这是代码的家', icon: '📁' },
+                { id: 'meet-keys', label: '低头认键盘：找到 Cmd ⌘、最长的空格条、上箭头 Shift ⇧', icon: '⌨️' },
+                { id: 'switch-en', label: '把输入法切换成英文——看屏幕右上角的输入法标志变成英文（ABC）', icon: '🔤' },
+                { id: 'type-hello', label: '打开文本编辑，新建文档，用英文敲出 hello', icon: '📝' },
+                { id: 'shift-try', label: '按住 Shift 再敲一个字母，看小写变大写——代码里 Hello 和 hello 可不是一回事', icon: '⬆️' }
+              ],
+              correctOrder: ['open-finder', 'meet-keys', 'switch-en', 'type-hello', 'shift-try']
+            },
+            prediction: {
+              question: '为什么写代码之前要先切换成英文输入法？',
+              inputType: 'choice',
+              options: [
+                { id: 'en-chars', label: 'C++ 代码里的单词和符号（int、;、>=）都必须是英文字符，中文输入法打出的符号编译器不认识' },
+                { id: 'looks', label: '因为英文看起来更酷，其实用什么输入法都行' },
+                { id: 'ban', label: '因为电脑里不允许出现任何中文字' }
+              ],
+              correct: 'en-chars'
+            },
+            successCriteria: '答出「代码的单词和符号必须是英文字符，中文输入法打的符号编译器不认」；独立排出五步并在真机完成，敲出的 hello 每个字母都是英文小写、按 Shift 能敲出大写。'
+          }
+        },
+        hintLadder: [
+          { level: 'H1', text: '任务是把工作台仪式的步骤排好队。想一想：代码还没有地方住的时候，先干哪件事？' },
+          { level: 'H2', text: '先安家，再备工具：文件夹是代码的家，键盘和英文输入法是写字的工具，最后才轮到真正敲字。' },
+          { level: 'H3', text: '「敲出 hello」一定排在切换英文输入法之后——不然敲出来的可能是一串汉字。先把第一步和最后一步定住，中间就好排了。' },
+          { level: 'H4', text: '打个比方：先收拾好书桌，再摆好纸和笔，最后才开始写字。建文件夹、切英文输入法、敲字，是不是同一个道理？' },
+          { level: 'H5', text: '教师提示：老师先在自己机器上完整演示「新建文件夹 → 切英文 → 敲 hello」一遍，再让孩子在学生机重做；输入法卡住时指着右上角的标志念「中/英」，让孩子自己按到英文为止。', teacherOnly: true }
+        ],
+        evidenceRule: {
+          dimension: 'D12',
+          note: '真机操作独立度：新建文件夹、认键、切英文输入法、敲英文四步里哪些能独立完成？切输入法与敲字的熟练度直接决定后面几课能否自己输入代码，需逐项记录。'
+        },
+        teacherCards: {
+          truth: '这一关仍是真实电脑操作，不是编程：访达（Dock 的笑脸）是 Mac 的文件管理器，管理文件和文件夹；这里建的「我的代码」文件夹，本课后面「代码的家」活动会再次用到——届时不必重建，找到它就行。Cmd ⌘ 是 Mac 的指挥键（Cmd+S 保存、Cmd+V 粘贴都靠它），Shift ⇧ 打大写字母，空格是最长那条。写代码必须用英文输入法：C++ 的关键词、分号、引号都是英文字符，中文输入法会打出全角符号（「；」和「;」不一样），编译器不认识。',
+          demo: '老师全程只动口不动手。孩子建好文件夹后，故意让他先用中文输入法敲一个分号，再切英文敲一个，把「；」和「;」放大摆在一起对比——为 A 档追问和以后亲手写代码埋伏笔。',
+          questions: [
+            '「我的代码」文件夹建在哪儿了？下周开机还能找到它吗？',
+            '屏幕右上角哪里能看出现在是中文输入法还是英文输入法？',
+            'Cmd、空格、Shift 三个键各在键盘的什么位置？Shift 是干什么用的？'
+          ],
+          misconceptions: [
+            '以为输入法只影响打汉字，不知道中文输入法连标点符号（；：“”）都会打成另一种样子。',
+            '以为文件夹建完关掉窗口就消失了，没有「它一直住在电脑里、随时能再找到」的概念。'
+          ],
+          rescueSteps: [
+            '一次只做一步：先只练「新建文件夹」——在桌面右键（或双指点按）菜单里找「新建文件夹」，命名成功了再进下一步。',
+            '切输入法卡住时，让孩子盯着右上角的输入法标志，每按一次切换键就看它变一次，变到英文（ABC）为止。',
+            '敲 hello 打不出来时，老师念一个字母、孩子按一个键，敲完一起指着屏幕把这个单词念一遍。'
+          ],
+          extension: '追问：如果用中文输入法敲 hello 会出现什么？在文本编辑里亲手试一试，再想想以后写代码时这会闯什么祸。（正好引出：代码里的每一个字符都要用英文输入法敲。）'
+        },
+        compilerCheck: {
+          enabled: false,
+          expectedStdout: ''
+        }
+      },
+
+      /* =====================================================================
        * 活动 1 · 0–7 分钟 · 能量回忆（predict）
        * 跨课承接：dynamic.initFromLesson1Energy + prediction.correctFromInherited
        * =================================================================== */
@@ -957,17 +1074,23 @@ var CppLab = (typeof window !== 'undefined')
             prediction: null,
             successCriteria: '排出正确顺序并亲手完成四步；能说出"代码保存下来会是 door.cpp 这样的文件，放在我的文件夹里"。'
           },
+          /* A 档加强（Dean 首课后指示「逐步推进到孩子自己输入代码」）：贴入代码
+           * 编译后，第 5 步亲手改一个字（把输出的 OPEN 换成自己的英文名字）再
+           * 编译一次——「自己输入代码」的第一次萌芽。仅动 A 档；E/S 档与活动级
+           * 共享字段（H5「四张卡」口诀、demo「演示四步」）描述的仍是基础四步
+           * 流程，不改。 */
           A: {
-            intro: '工坊高级任务：四步全部自己来，一步都不用老师帮。完成后还有一道侦探题——文件名 door.cpp 里那条"小尾巴"到底是什么意思？',
+            intro: '工坊高级任务：五步全部自己来，一步都不用老师帮——最后一步你要亲手改代码里的一个字！完成后还有一道侦探题——文件名 door.cpp 里那条"小尾巴"到底是什么意思？',
             program: null,
             interaction: {
               items: [
                 { id: 'card-folder', label: '在电脑上新建一个文件夹，取名「我的代码」——这是代码的家', icon: '📁' },
                 { id: 'card-visit', label: '打开浏览器，去代码工坊 godbolt.org', icon: '🌐' },
                 { id: 'card-paste', label: '把舱门程序的代码贴进左边的代码框', icon: '📋' },
-                { id: 'card-compile', label: '自己点编译，看右边打出结果', icon: '▶️' }
+                { id: 'card-compile', label: '自己点编译，看右边打出结果', icon: '▶️' },
+                { id: 'card-edit', label: '亲手改一个字：把代码里输出的 OPEN 换成你的英文名字（记得用英文输入法！），再点一次编译，看结果跟着变', icon: '✏️' }
               ],
-              correctOrder: ['card-folder', 'card-visit', 'card-paste', 'card-compile']
+              correctOrder: ['card-folder', 'card-visit', 'card-paste', 'card-compile', 'card-edit']
             },
             prediction: {
               question: 'door.cpp 这个[[文件|file]]的名字里，后缀「.cpp」是什么意思？',
@@ -979,7 +1102,7 @@ var CppLab = (typeof window !== 'undefined')
               ],
               correct: 'kind'
             },
-            successCriteria: '独立完成四步操作；能说出".cpp 后缀告诉电脑这是 C++ 代码文件"，并能在文件夹里再次找到自己的文件。'
+            successCriteria: '独立完成五步操作（含亲手把 OPEN 改成自己的英文名字并重新编译）；能说出".cpp 后缀告诉电脑这是 C++ 代码文件"，并能指着新输出说"这是我自己改出来的"。'
           }
         },
         hintLadder: [
