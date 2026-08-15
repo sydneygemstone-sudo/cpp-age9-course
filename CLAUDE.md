@@ -14,6 +14,7 @@ Dean 本人给 9 岁孩子面授的 C++ 编程课课件仓库（试听课 + 第 
 - [x] **常驻种子已就位**：`server/seed.json`（学生真名昵称，gitignored 不入库；单学生、不做账户系统——Dean 定案）。已标 trial+lesson1 completed。起服：`node server/server.js --port 8099 --seed server/seed.json`（续档时**不要**带 `--fresh`，`--fresh` 会重置回种子态）。
 - [x] **第 2 课 Mac 侧线升级完成**（`984e1af`，2026-08-15 晚）：开场「工作台仪式」+ 文件与工坊 A 档「亲手改一字再编译」；7 测试 2062 断言全绿。注：glm 通道（ccglm/z.ai）当晚从本网络不可达，本单经 Dean 拍板破例由 Claude 子代理完成；glm 恢复后回归「编码活派 glm」规矩（派前先探活 api.z.ai）。**难度阶梯目标：两三节课后孩子自己输入代码编程**。
 - [ ] 同步链路疑似 bug：2026-08-15 首课当堂进度未回写服务器（version 停 0），要不要排查等 Dean 拍板。
+- [x] **旧仓库归档+冗余清理完成**（2026-08-16，Dean 指示）：`.old/` 雪藏区现存 4 个 tar.gz（B 版含 git 完整备份 / legacy 三代 main+g2+g3 / 8-11 快照 / 剧场合并前 main）+ 桌面手册副本 + 旧 CDP-lesson2 稿；`~/cpp-course-backups/` 与桌面副本已并入并删除原位；远端 theater-mode 分支已删；旧 `qa/cdp-lesson1.mjs`（剧场 UI 下必挂）已 git rm（git 史可寻回）。**msi 服务器 legacy 三代旧镜像（root 属主）未动**——本地已有完整归档，删除留主控/Dean。
 - [ ] 第 3 课（string/cin，引擎有缺口挡 S/A 路径）——孩子「自己敲码」阶梯的下一步，需先补引擎。
 - 派工规矩：编码实现活派 **glm 通道**（`ccglm`），网络探针派 **agy**；主 session 负责规格、验收、commit。
 
@@ -23,6 +24,9 @@ Dean 本人给 9 岁孩子面授的 C++ 编程课课件仓库（试听课 + 第 
 | `docs/kb/versions-a-b.md` | 碰到 B 版/「最后冲刺」/合并类问题时——已定案的取证链 |
 | `docs/kb/qa-snapshot-20260813.md` | 需要测试基线、8099/PID 取证、机制核实结论时 |
 | `docs/kb/runbook-server.md` | 要起服、跑测试、查端口时 |
+
+## 权威文档（Notion，2026-08-16 起）
+「07 · C++ 课程」主页 https://app.notion.com/p/3ba0240a39ca815398c4fbce68ef6ed1 下挂三个子页：开发路径与图景 / 产品 Spec / 沟通 Brief——对外沟通与路线图以 Notion 为准，代码事实以本仓库为准。
 
 ## 路径速查
 - 本仓库结构：`index.html`/`teacher.html`/`setup.html`/`周六课前checklist.html`、`js/{ui,content,engine,tests}/`、`server/`（seed.json 与 data/ gitignored）、`tools/make-seed.js`、`qa/cdp-*.mjs`、`docs/`（教案、使用手册、kb）。

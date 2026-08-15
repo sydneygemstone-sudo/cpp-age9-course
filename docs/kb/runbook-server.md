@@ -24,5 +24,5 @@ node server/server.js --port 8099 --seed server/seed.json --fresh  # 重置回�
 ## 测试与 QA 入口
 ```bash
 for f in js/tests/test-*.js; do node "$f"; done   # 7 个文件 / 1936 断言基线
-node qa/cdp-lesson1.mjs                            # CDP 第 1 课闭环（需 Chrome，默认 BASE 8099）
+node qa/cdp-lesson1-theater.mjs                    # CDP 第 1 课闭环·剧场版 28 项（需 Chrome，BASE 8100，先起服后跑、跑完杀服）
 ```
