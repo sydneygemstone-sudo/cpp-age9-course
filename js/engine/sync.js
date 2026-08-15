@@ -514,9 +514,32 @@ var CppLab = (typeof window !== 'undefined')
     });
   }
 
+  /**
+   * 事件级触发：立即观察本地变化并跳过防抖直发 PUT。
+   * 供「活动完成 / 证据落库 / 主题切换」等关键时刻调用——进度刚产生就推，
+   * 不把回写押在 2s 轮询 + 1s 防抖的整堂课存活上（2026-08-15 首课实测：
+   * 轮询通道停摆时进度全程没回写服务器，version 停 0）。
+   * 例外：恰有 PUT 在途（putBusy）时不抢道，新变化入队后由在途请求
+   * 落定时的重排发出（最多多等 1s 防抖，不丢数据）。
+   * 轮询仍保留作兜底；非 student 或未启动时安全返回。
+   */
+  function poke() {
+    if (!running || role !== 'student') return false;
+    observeLocal();
+    if (pendingRaw !== null && !putBusy) {
+      if (putTimer !== null) {
+        clearTimeout(putTimer);
+        putTimer = null;
+      }
+      flushPut(generation);
+    }
+    return true;
+  }
+
   var Sync = {
     start: start,
     pushOp: pushOp,
+    poke: poke,
     status: function () {
       return {
         connected: connected,

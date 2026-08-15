@@ -217,6 +217,17 @@ var CppLab = (typeof window !== 'undefined')
   function Sto() { return CppLab.Storage; }
   function session() { return Sto().load(); }
 
+  /**
+   * 进度刚落库就推同步（活动完成 / 试听观察 / 主题切换等关键时刻调用）。
+   * 不等 2s 轮询：轮询通道一旦停摆（2026-08-15 首课实测，version 停 0），
+   * 事件级推送是进度离开这台设备的另一条路。失败静默，绝不阻断课堂。
+   */
+  function syncPoke() {
+    if (CppLab.Sync && typeof CppLab.Sync.poke === 'function') {
+      try { CppLab.Sync.poke(); } catch (e) { /* 同步失败不影响本地课堂 */ }
+    }
+  }
+
   /* ======================================================================
    * 启动
    * ==================================================================== */
@@ -367,6 +378,7 @@ var CppLab = (typeof window !== 'undefined')
     var s = session();
     if ((s.theme || null) === id) return;
     Sto().update(function (ss) { ss.theme = id; });
+    syncPoke(); // 主题切换落库即推（换设备续课时主题不丢）
     applyTheme(id);
     refreshThemeSwitch();
     if (S.view === 'home') { renderHome(); return; }
@@ -2841,6 +2853,7 @@ var CppLab = (typeof window !== 'undefined')
           ss.lessons[lessonId].finalEnergy = cardData.finalEnergy;
         }
       });
+      syncPoke(); // 作品卡/验证印章是证据：保存即推（保存、验证成功两条路径都不经过 completeCurrent）
       return cardData;
     }
 
@@ -3643,6 +3656,7 @@ var CppLab = (typeof window !== 'undefined')
         }
       }
     });
+    syncPoke(); // 试听观察（interests/aiHabit）也是证据，落库即推
   }
 
   function completeCurrent(opts) {
@@ -3657,6 +3671,7 @@ var CppLab = (typeof window !== 'undefined')
     } catch (e) {
       res = { ok: false };
     }
+    syncPoke(); // 完成与证据已落库（completeActivity 内含 Evidence.record），立刻推服务器
     if (S.lessonId === 'trial') refreshTrialGateFromStorage();
     if (S.viz) { try { S.viz.celebrate(); } catch (e) { /* 忽略 */ } }
     refreshDots();
@@ -3912,6 +3927,7 @@ var CppLab = (typeof window !== 'undefined')
             ss.lessons[lessonId] = ss.lessons[lessonId] || { completed: false, activityStates: {} };
             ss.lessons[lessonId].learnedOne = String(optText);
           });
+          syncPoke(); // 课末自评是最后一份证据：此后不再有完成事件，落库即推
           toast('记下来啦！');
         });
         row.appendChild(c);

@@ -168,11 +168,64 @@ function testConflictRetry() {
   });
 }
 
+/* 6. poke()：完成/证据/主题切换等关键时刻跳过 1s 防抖与轮询周期，立即 PUT。
+ *    背景：2026-08-15 首课实测轮询通道停摆时进度全程未回写（version 停 0），
+ *    事件级触发是轮询之外的第二条路。 */
+function testPokeImmediatePut() {
+  Storage.clear();
+  var puts = [];
+  function fetchFn(requestUrl, options) {
+    if (requestUrl.indexOf('/api/ops?') >= 0) return Promise.resolve(opsEmpty());
+    if (requestUrl.indexOf('/api/state') >= 0 && options && options.method === 'PUT') {
+      puts.push({ at: Date.now(), body: JSON.parse(options.body) });
+      return Promise.resolve(fakeResponse(200, { ok: true, version: puts.length }));
+    }
+    return Promise.resolve(fakeResponse(404, { ok: false }));
+  }
+  // pollMs 故意拉到 60s：证明 poke 的 PUT 不依赖轮询周期，也不等 1s 防抖
+  Sync.start({ role: 'student', pollMs: 60000, baseUrl: 'http://poke-immediate.test', fetchFn: fetchFn });
+  var startAt = Date.now();
+  Storage.update(function (s) { s.nickname = '点一下就推'; });
+  var poked = Sync.poke();
+  return wait(150).then(function () {
+    assert(poked === true, 'student 运行中 poke() 应返回 true');
+    assert(puts.length === 1, 'poke() 应跳过防抖立即发出 PUT（而非等轮询/防抖）');
+    assert(puts[0].body.session.nickname === '点一下就推', 'poke() 的 PUT 应携带刚写入的会话');
+    assert(puts[0].at - startAt < 900, 'poke() 的 PUT 应早于 1s 防抖触发');
+    var pokedAgain = Sync.poke();
+    return wait(150).then(function () {
+      assert(pokedAgain === true, '无新变化时 poke() 仍安全返回 true');
+      assert(puts.length === 1, '会话未变化时 poke() 不得重复 PUT');
+      assert(Sync.status().connected === true, 'poke 成功后 connected 应为 true');
+      Sync.stop();
+    });
+  });
+}
+
+/* 7. poke() 在未启动/teacher 角色下必须安全（返回 false、不发 PUT）。 */
+function testPokeGuards() {
+  Storage.clear();
+  var putCount = 0;
+  function fetchFn(requestUrl, options) {
+    if (requestUrl.indexOf('/api/state') >= 0 && options && options.method === 'PUT') putCount += 1;
+    return Promise.resolve(fakeResponse(200, { ok: true, version: 1, session: Storage.load(), updatedAt: '2026-08-15T00:00:00.000Z' }));
+  }
+  assert(Sync.poke() === false, '未 start 时 poke() 应返回 false');
+  Sync.start({ role: 'teacher', pollMs: 25, baseUrl: 'http://poke-guard.test', fetchFn: fetchFn });
+  assert(Sync.poke() === false, 'teacher 角色下 poke() 应返回 false');
+  return wait(80).then(function () {
+    assert(putCount === 0, 'teacher 角色下 poke()/轮询都不得产生 PUT（写操作只走 pushOp）');
+    Sync.stop();
+  });
+}
+
 testOfflineFallback()
   .then(testStudentPut)
   .then(testTeacherPull)
   .then(testOpIdempotenceAndTier)
   .then(testConflictRetry)
+  .then(testPokeImmediatePut)
+  .then(testPokeGuards)
   .then(function () {
     if (!failed) console.log('PASS (' + assertCount + ' assertions)');
   }, function (err) {
