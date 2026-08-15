@@ -6,11 +6,14 @@
 - **方式 A（主用，跨机）**：老师 Mac 起服，学生机/平板浏览器连 `http://<老师IP>:8099/index.html`。
 - **方式 B（应急，单机）**：`file://` 双击 `index.html`。纯 `<script src>` 加载，已核实安全。
 
-## 起服（测试时）
+## 起服
 ```bash
-node server/server.js --port 8099 --seed server/seed.json --fresh
+node server/server.js --port 8099 --seed server/seed.json          # 上课/续档（保留已存进度）
+node server/server.js --port 8099 --seed server/seed.json --fresh  # 重置回种子态（慎用）
 ```
-- `--fresh` + 种子 → 首屏 HTML 内联 `window.__CPPLAB_SEED__`（`server.js:293-311`），前端 `app.js:522` 直接渲染欢迎语。
+- `server/seed.json` 是**常驻种子**（2026-08-15 起，学生真名昵称，gitignored 勿入库；trial+lesson1 已标 completed）。重新生成：`node tools/make-seed.js --nickname "<昵称>" --path A --theme robot > server/seed.json`，再按需改 lessons.*.completed。
+- 种子 → 首屏 HTML 内联 `window.__CPPLAB_SEED__`（server.js），前端 app.js 直接渲染欢迎语。
+- ⚠️ 已知坑（2026-08-15 首课实测）：当堂进度可能不回写服务器 latest.json（version 停 0）——课后想留进度先 `curl localhost:<port>/api/state` 落盘取证，勿直接 `--fresh` 覆盖。
 - 种子生成：`tools/make-seed.js`；`server/seed.json` 与 `server/data/` 均 gitignored。
 - **闸门：测完必关，不留任何后台进程。**
 

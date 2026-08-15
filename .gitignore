@@ -12,3 +12,6 @@ qa/.chrome*
 
 # worktree 一律放项目内（Dean 要求）
 .worktrees/
+
+# 雪藏区：旧版本压缩包，新 session 勿读
+.old/
